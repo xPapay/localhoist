@@ -93,8 +93,18 @@ kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
 diff -u "$PROJ/.env.orig" "$PROJ/.env" || fail ".env not restored after recovery run"
 echo "PASS: crash recovery restores original values on next start"
 
-# ── Scenario 3: mux routes a real request end-to-end ─────────────────
-python3 -m http.server 18099 --bind 127.0.0.1 > /dev/null 2>&1 &
+# ── Scenario 3: mux routes real requests and rewrites HTML in-flight ─
+DOCROOT="$WORK/docroot"
+mkdir -p "$DOCROOT" "$PROJ/public"
+cat > "$DOCROOT/index.html" <<'EOF'
+<html><head>
+<script type="module" src="http://[::1]:5173/@vite/client"></script>
+<script type="module" src="http://[::1]:5173/resources/js/app.js"></script>
+</head><body>ok</body></html>
+EOF
+printf 'http://[::1]:5173' > "$PROJ/public/hot"
+
+python3 -m http.server 18099 --bind 127.0.0.1 -d "$DOCROOT" > /dev/null 2>&1 &
 HTTP_PID=$!
 sed -i.bak 's|^APP_URL=.*|APP_URL=http://127.0.0.1:18099|' "$PROJ/.env"; rm -f "$PROJ/.env.bak"
 cp "$PROJ/.env" "$PROJ/.env.orig"
@@ -106,8 +116,15 @@ CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$MUX_PORT/")
 [ "$CODE" = "200" ] || fail "mux did not proxy / to the app upstream (got $CODE)"
 CODE_VITE=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$MUX_PORT/@vite/client")
 [ "$CODE_VITE" = "502" ] || fail "expected 502 from dead vite upstream, got $CODE_VITE"
+
+# The hot-file origin in HTML must be rewritten to the public origin the
+# browser used (Host header), so @vite tags work with no restart.
+BODY=$(curl -s -H "Host: phone.example.test" -H "Accept: text/html" "http://127.0.0.1:$MUX_PORT/index.html")
+echo "$BODY" | grep -q 'src="http://phone.example.test/@vite/client"' \
+  || fail "hot origin not rewritten in HTML: $BODY"
+echo "$BODY" | grep -q '\[::1\]:5173' && fail "hot origin survived in HTML: $BODY"
 kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
-echo "PASS: mux proxies requests and 502s dead upstreams"
+echo "PASS: mux proxies requests, rewrites HTML in-flight, and 502s dead upstreams"
 
 echo
 echo "ALL E2E SCENARIOS PASSED"

@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -74,8 +75,14 @@ func run() error {
 
 	// ── Start the local mux ──────────────────────────────────────────
 
-	routes := proxy.Routes(project.AppUpstream, project.ViteUpstream, project.ReverbUpstream)
-	mux := proxy.NewMux(routes, nil)
+	cfg := proxy.Config{
+		App:     project.AppUpstream,
+		Vite:    project.ViteUpstream,
+		Reverb:  project.ReverbUpstream,
+		HotFile: filepath.Join(project.Dir, "public", "hot"),
+	}
+	routes := cfg.Routes()
+	mux := proxy.NewMux(cfg)
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -160,7 +167,7 @@ func run() error {
 	if project.ConfigCached {
 		fmt.Println("  ⚠ config is cached — run `php artisan config:clear` or the app won't see the new APP_URL")
 	}
-	fmt.Println("  ⚠ restart your Vite dev server so HMR and Echo pick up the tunnel host")
+	fmt.Println("  ✔ HMR + Echo rewritten in-flight — no Vite restart needed")
 	fmt.Println()
 
 	if !*noQR {

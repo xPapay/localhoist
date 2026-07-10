@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end harness for the expose binary. Uses a fake ngrok on PATH, so it
+# End-to-end harness for the localhoist binary. Uses a fake ngrok on PATH, so it
 # runs entirely offline and publishes nothing.
 #
 #   Scenario 1: clean run patches .env, SIGINT restores it byte-for-byte
@@ -54,11 +54,11 @@ REVERB_SCHEME=http
 EOF
 cp "$PROJ/.env" "$PROJ/.env.orig"
 
-(cd "$REPO" && go build -o "$WORK/expose" ./cmd/expose)
+(cd "$REPO" && go build -o "$WORK/localhoist" ./cmd/localhoist)
 
 run_expose() {
   : > "$WORK/out.log"
-  PATH="$FAKEBIN:$PATH" "$WORK/expose" --dir "$PROJ" --no-qr > "$WORK/out.log" 2>&1 &
+  PATH="$FAKEBIN:$PATH" "$WORK/localhoist" --dir "$PROJ" --no-qr > "$WORK/out.log" 2>&1 &
   EXPOSE_PID=$!
   for i in $(seq 1 50); do
     grep -q "🌍" "$WORK/out.log" 2>/dev/null && break   # banner prints after the .env patch
@@ -74,11 +74,11 @@ grep -q "APP_URL=https://fake123.ngrok-free.app" "$PROJ/.env" || fail "APP_URL n
 grep -q "REVERB_HOST=fake123.ngrok-free.app"     "$PROJ/.env" || fail "REVERB_HOST not patched"
 grep -q "REVERB_PORT=443"                        "$PROJ/.env" || fail "REVERB_PORT not patched"
 grep -q "REVERB_SCHEME=https"                    "$PROJ/.env" || fail "REVERB_SCHEME not patched"
-[ -f "$PROJ/.env.expose-state.json" ] || fail "state file missing while running"
+[ -f "$PROJ/.env.localhoist-state.json" ] || fail "state file missing while running"
 
 kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
 diff -u "$PROJ/.env.orig" "$PROJ/.env" || fail ".env not restored after SIGINT"
-[ ! -f "$PROJ/.env.expose-state.json" ] || fail "state file left behind after clean exit"
+[ ! -f "$PROJ/.env.localhoist-state.json" ] || fail "state file left behind after clean exit"
 pgrep -f "$FAKEBIN/ngrok" > /dev/null && fail "fake ngrok still running after exit"
 echo "PASS: clean run patches and restores .env"
 
@@ -87,7 +87,7 @@ run_expose
 kill -9 "$EXPOSE_PID"; wait "$EXPOSE_PID" 2>/dev/null || true
 pkill -f "$FAKEBIN/ngrok" 2>/dev/null || true
 grep -q "fake123" "$PROJ/.env" || fail "precondition: .env should still be patched after SIGKILL"
-[ -f "$PROJ/.env.expose-state.json" ] || fail "precondition: state file should survive SIGKILL"
+[ -f "$PROJ/.env.localhoist-state.json" ] || fail "precondition: state file should survive SIGKILL"
 
 run_expose   # next start must restore first, then re-patch
 grep -q "restored .env values left over" "$WORK/out.log" || fail "no crash-recovery message"

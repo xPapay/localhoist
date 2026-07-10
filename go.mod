@@ -1,4 +1,4 @@
-module expose
+module github.com/xPapay/localhoist
 
 go 1.21.0
 

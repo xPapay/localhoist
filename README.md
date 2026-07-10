@@ -1,4 +1,4 @@
-# expose (working title)
+# localhoist
 
 `artisan share` that actually works: one command that puts your local Laravel
 dev environment online — app, **Vite HMR**, and **Reverb websockets** all
@@ -11,11 +11,11 @@ and asset generation. This tool fixes all three.
 
 ## Status
 
-Week 1–2 MVP: working binary, BYO ngrok transport. See [Roadmap](#roadmap).
+Working binary + `php artisan share`, BYO ngrok transport, zero-config HMR/Echo through the tunnel. See [Roadmap](#roadmap).
 
 ## What exists now
 
-- **`cmd/expose`** — the CLI. Detects the project, starts the mux on an
+- **`cmd/localhoist`** — the CLI. Detects the project, starts the mux on an
   ephemeral port, spawns your installed ngrok, patches `.env`, prints the
   public URL + QR code, and restores everything on `Ctrl+C`.
 - **`internal/proxy`** — the smart mux that replaces the hand-rolled nginx
@@ -37,7 +37,7 @@ Week 1–2 MVP: working binary, BYO ngrok transport. See [Roadmap](#roadmap).
   replaces the dev-server origin from `public/hot` in HTML responses, so
   `@vite` script tags point at the tunnel.
 - **`internal/envfile`** — crash-safe `.env` patching. Original values are
-  snapshotted to `.env.expose-state.json` *before* any write, so even after
+  snapshotted to `.env.localhoist-state.json` *before* any write, so even after
   `kill -9` the next run restores the file byte-for-byte, quotes included.
   Layout, comments, and untouched keys are always preserved.
 - **`internal/laravel`** — the framework adapter. Derives the app upstream
@@ -48,9 +48,9 @@ Week 1–2 MVP: working binary, BYO ngrok transport. See [Roadmap](#roadmap).
 - **`internal/tunnel`** — BYO transport. Spawns `ngrok` in its own process
   group and reads the tunnel URL from its JSON log stream instead of polling
   the local API port, so it can't collide with another running ngrok agent.
-- **`packages/laravel-share`** — the Composer package:
+- **`packages/laravel`** — the Composer package:
   `php artisan share`. A thin wrapper that locates the binary
-  (`EXPOSE_BINARY` → PATH → `~/.expose/bin` cache → GitHub release
+  (`LOCALHOIST_BINARY` → PATH → `~/.localhoist/bin` cache → GitHub release
   download, tailwindcss-standalone style), hands it the real TTY, and
   passes flags through. Warns Sail users when run inside a container —
   the tunnel needs the host's ports.
@@ -59,8 +59,8 @@ Week 1–2 MVP: working binary, BYO ngrok transport. See [Roadmap](#roadmap).
 
 ```sh
 cd your-laravel-app
-expose            # the binary directly…
-php artisan share # …or via the Composer package (expose/laravel-share)
+localhoist        # the binary directly…
+php artisan share # …or via the Composer package (localhoist/laravel)
 ```
 
 That's it. You get a public URL and a QR code to open it on your phone.
@@ -102,11 +102,11 @@ Flags: `--dir` (project path), `--domain` (static tunnel domain, or set
 5. **Patches `.env`** — `APP_URL`, `REVERB_HOST`, `REVERB_PORT=443`,
    `REVERB_SCHEME=https` point at the tunnel while it runs, so server-side
    URL generation (signed URLs, redirects, assets) is correct. Originals
-   are snapshotted to `.env.expose-state.json` first, so even after a crash
+   are snapshotted to `.env.localhoist-state.json` first, so even after a crash
    or `kill -9` the next run restores your file byte-for-byte. On exit the
    patch is reverted and the snapshot removed.
 
-Tip: add `.env.expose-state.json` to your project's `.gitignore` (it holds
+Tip: add `.env.localhoist-state.json` to your project's `.gitignore` (it holds
 no secrets — just the original values of the four patched keys).
 
 ## Building and running
@@ -116,16 +116,18 @@ and authenticated (`ngrok config add-authtoken …`) — transport is BYO in
 this version.
 
 ```sh
-# build
-go build -o expose ./cmd/expose
+# install a released binary
+go install github.com/xPapay/localhoist/cmd/localhoist@latest
+# …or grab one from https://github.com/xPapay/localhoist/releases
 
-# put it on your PATH (optional)
-install -m 755 expose /usr/local/bin/expose
+# or build from source
+go build -o localhoist ./cmd/localhoist
+install -m 755 localhoist /usr/local/bin/localhoist
 
 # run it from (or at) a Laravel project
-cd ~/code/my-laravel-app && expose
-expose --dir ~/code/my-laravel-app        # same thing, from anywhere
-expose --domain my-app.ngrok-free.dev     # stable domain instead of a random one
+cd ~/code/my-laravel-app && localhoist
+localhoist --dir ~/code/my-laravel-app        # same thing, from anywhere
+localhoist --domain my-app.ngrok-free.dev     # stable domain instead of a random one
 ```
 
 While it runs: `.env` points at the tunnel, and HMR + Echo work through it
@@ -153,5 +155,5 @@ bash test/e2e.sh    # end-to-end: patch → run → restore, crash recovery,
 - [ ] Custom route escape hatch (config file)
 - [ ] Own relay + stable custom subdomains (paid tier)
 - [ ] Sail/Docker service image
-- [ ] `expose-ready` composer package (trusted-proxy middleware + Echo helper, zero `.env` mutation)
+- [ ] `localhoist/ready` composer package (trusted-proxy middleware + Echo helper, zero `.env` mutation)
 - [ ] Tray app (tunnels list, request inspector, QR)

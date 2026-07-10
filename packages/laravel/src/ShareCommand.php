@@ -1,6 +1,6 @@
 <?php
 
-namespace Expose\Share;
+namespace Localhoist\Laravel;
 
 use Illuminate\Console\Command;
 use RuntimeException;
@@ -13,7 +13,7 @@ class ShareCommand extends Command
         {--domain= : Static tunnel domain (e.g. my-app.ngrok-free.dev)}
         {--no-qr : Skip the QR code}
         {--no-env-patch : Do not touch .env (URLs/websockets may break)}
-        {--binary= : Path to the expose binary (overrides auto-detection)}';
+        {--binary= : Path to the localhoist binary (overrides auto-detection)}';
 
     protected $description = 'Put this app online — Vite HMR, Reverb websockets, and signed URLs all working through one tunnel';
 
@@ -22,7 +22,7 @@ class ShareCommand extends Command
         if ($this->runningInsideContainer()) {
             $this->warn('This command appears to be running inside a container (Sail?).');
             $this->warn('The tunnel must run where your ports are published — on the host.');
-            $this->warn('Install the expose binary on your host and run it there instead.');
+            $this->warn('Install the localhoist binary on your host and run it there instead.');
             $this->newLine();
         }
 

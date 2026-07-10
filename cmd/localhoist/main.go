@@ -1,4 +1,4 @@
-// Command expose shares a local Laravel dev environment through a tunnel —
+// Command localhoist shares a local Laravel dev environment through a tunnel —
 // app, Vite HMR, and Reverb websockets all working through one public URL,
 // zero config. Port of the hand-rolled bin/expose + nginx mux setup.
 package main
@@ -19,10 +19,10 @@ import (
 
 	"github.com/mdp/qrterminal/v3"
 
-	"expose/internal/envfile"
-	"expose/internal/laravel"
-	"expose/internal/proxy"
-	"expose/internal/tunnel"
+	"github.com/xPapay/localhoist/internal/envfile"
+	"github.com/xPapay/localhoist/internal/laravel"
+	"github.com/xPapay/localhoist/internal/proxy"
+	"github.com/xPapay/localhoist/internal/tunnel"
 )
 
 // version is stamped by releases via -ldflags "-X main.version=…".
@@ -33,7 +33,7 @@ var reverbKeys = []string{"REVERB_HOST", "REVERB_PORT", "REVERB_SCHEME"}
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "expose: %v\n", err)
+		fmt.Fprintf(os.Stderr, "localhoist: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -48,7 +48,7 @@ func run() error {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println("expose " + version)
+		fmt.Println("localhoist " + version)
 		return nil
 	}
 
@@ -118,8 +118,8 @@ func run() error {
 		cleanupOnce.Do(func() {
 			if state != nil {
 				if err := state.Restore(); err != nil {
-					fmt.Fprintf(os.Stderr, "expose: FAILED to restore .env: %v\n", err)
-					fmt.Fprintf(os.Stderr, "expose: original values are in %s\n", envfile.StatePath(project.Env.Path))
+					fmt.Fprintf(os.Stderr, "localhoist: FAILED to restore .env: %v\n", err)
+					fmt.Fprintf(os.Stderr, "localhoist: original values are in %s\n", envfile.StatePath(project.Env.Path))
 				} else {
 					fmt.Println("  ✔ .env restored")
 				}

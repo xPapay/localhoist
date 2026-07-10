@@ -1,6 +1,6 @@
 <?php
 
-namespace Expose\Share;
+namespace Localhoist\Laravel;
 
 use Illuminate\Support\ServiceProvider;
 

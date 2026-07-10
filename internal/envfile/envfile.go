@@ -64,7 +64,7 @@ func (f *File) Save() error {
 	if info, err := os.Stat(f.Path); err == nil {
 		perm = info.Mode().Perm()
 	}
-	tmp := f.Path + ".expose-tmp"
+	tmp := f.Path + ".localhoist-tmp"
 	content := strings.Join(f.lines, "\n") + "\n"
 	if err := os.WriteFile(tmp, []byte(content), perm); err != nil {
 		return err
@@ -85,14 +85,14 @@ func unquote(v string) string {
 // State records the original values of the keys we patched, so they can be
 // restored on exit — or on the next start, if the previous run crashed.
 // It lives next to the .env file and contains no secrets, only the handful
-// of URL/host keys expose rewrites.
+// of URL/host keys localhoist rewrites.
 type State struct {
 	EnvPath  string            `json:"env_path"`
 	Original map[string]string `json:"original"`
 }
 
 func StatePath(envPath string) string {
-	return envPath + ".expose-state.json"
+	return envPath + ".localhoist-state.json"
 }
 
 // SaveState snapshots the current raw values of keys (those that exist) into

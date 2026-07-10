@@ -1,0 +1,29 @@
+# Release pipeline: raw binaries (no archives) whose asset names match what
+# packages/laravel's BinaryLocator downloads: localhoist-{version}-{os}-{arch}
+version: 2
+
+project_name: localhoist
+
+builds:
+  - main: ./cmd/localhoist
+    binary: localhoist
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - formats: [binary]
+    name_template: "localhoist-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: git

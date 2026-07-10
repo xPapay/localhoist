@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"expose/internal/envfile"
+	"github.com/xPapay/localhoist/internal/envfile"
 )
 
 type Project struct {

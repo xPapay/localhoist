@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"expose/internal/rewrite"
+	"github.com/xPapay/localhoist/internal/rewrite"
 )
 
 // Route sends requests whose path matches Prefix to Target. A Prefix ending
@@ -129,7 +129,7 @@ func (m *Mux) newProxy(role string, target *url.URL) *httputil.ReverseProxy {
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			m.cfg.Logf("upstream %s unreachable for %s %s: %v", target, r.Method, r.URL.Path, err)
 			w.WriteHeader(http.StatusBadGateway)
-			w.Write([]byte("expose: upstream " + target.String() + " unreachable — is it running?\n"))
+			w.Write([]byte("localhoist: upstream " + target.String() + " unreachable — is it running?\n"))
 		},
 	}
 }

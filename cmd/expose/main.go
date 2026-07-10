@@ -25,6 +25,9 @@ import (
 	"expose/internal/tunnel"
 )
 
+// version is stamped by releases via -ldflags "-X main.version=…".
+var version = "dev"
+
 // envKeys are the .env keys we patch while the tunnel is up.
 var reverbKeys = []string{"REVERB_HOST", "REVERB_PORT", "REVERB_SCHEME"}
 
@@ -41,7 +44,13 @@ func run() error {
 	appFlag := flag.String("app", "", "app upstream URL (overrides the one derived from APP_URL)")
 	noQR := flag.Bool("no-qr", false, "skip the QR code")
 	noPatch := flag.Bool("no-env-patch", false, "don't touch .env (URLs/websockets may break)")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("expose " + version)
+		return nil
+	}
 
 	// ── Detect project ───────────────────────────────────────────────
 

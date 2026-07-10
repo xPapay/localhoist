@@ -41,10 +41,12 @@ chmod +x "$FAKEBIN/ngrok"
 
 # ── fake Laravel project ──────────────────────────────────────────────
 printf '#!/usr/bin/env php\n' > "$PROJ/artisan"
+# VITE_PORT deliberately points at a dead port — a real dev machine may
+# have an actual Vite running on 5173, which would break the 502 assertion.
 cat > "$PROJ/.env" <<'EOF'
 APP_NAME=Fake
 APP_URL=http://localhost:8088
-VITE_PORT=5173
+VITE_PORT=18098
 REVERB_APP_KEY=key123
 REVERB_HOST="localhost"
 REVERB_PORT=8080

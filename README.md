@@ -48,12 +48,19 @@ Week 1–2 MVP: working binary, BYO ngrok transport. See [Roadmap](#roadmap).
 - **`internal/tunnel`** — BYO transport. Spawns `ngrok` in its own process
   group and reads the tunnel URL from its JSON log stream instead of polling
   the local API port, so it can't collide with another running ngrok agent.
+- **`packages/laravel-share`** — the Composer package:
+  `php artisan share`. A thin wrapper that locates the binary
+  (`EXPOSE_BINARY` → PATH → `~/.expose/bin` cache → GitHub release
+  download, tailwindcss-standalone style), hands it the real TTY, and
+  passes flags through. Warns Sail users when run inside a container —
+  the tunnel needs the host's ports.
 
 ## Usage
 
 ```sh
 cd your-laravel-app
-expose
+expose            # the binary directly…
+php artisan share # …or via the Composer package (expose/laravel-share)
 ```
 
 That's it. You get a public URL and a QR code to open it on your phone.
@@ -140,7 +147,9 @@ bash test/e2e.sh    # end-to-end: patch → run → restore, crash recovery,
 - [x] In-flight rewriting: `/@vite/client` HMR config, `import.meta.env`
       Reverb values, and `@vite` script-tag origins (no Vite restart, no
       config needed)
-- [ ] `php artisan share` composer wrapper (auto-downloads the binary)
+- [x] `php artisan share` composer wrapper (auto-downloads the binary;
+      publish to Packagist once named + binaries released)
+- [ ] Binary releases (GitHub) so the wrapper's auto-download works
 - [ ] Custom route escape hatch (config file)
 - [ ] Own relay + stable custom subdomains (paid tier)
 - [ ] Sail/Docker service image

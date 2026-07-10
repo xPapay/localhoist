@@ -57,6 +57,8 @@ func TestRouting(t *testing.T) {
 		"/node_modules/x.js":    "vite",
 		"/vendor/pkg/asset.js":  "vite",
 		"/__vite_hmr":           "vite",
+		// laravel-vite-plugin v3 serves fonts from the dev server here.
+		"/__laravel_vite_plugin__/fonts/a.woff2": "vite",
 	}
 	for path, want := range cases {
 		resp, err := http.Get(front.URL + path)

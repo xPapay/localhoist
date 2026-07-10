@@ -84,7 +84,7 @@ Flags: `--dir` (project path), `--domain` (static tunnel domain, or set
    | Path | Upstream |
    |---|---|
    | `/app/…` | Reverb (websockets) |
-   | `/@vite/`, `/@id/`, `/@fs/`, `/resources/`, `/node_modules/`, `/vendor/`, `/__vite_hmr` | Vite dev server |
+   | `/@vite/`, `/@id/`, `/@fs/`, `/resources/`, `/node_modules/`, `/vendor/`, `/__vite_hmr`, `/__laravel_vite_plugin__/` | Vite dev server |
    | everything else | your app |
 3. **Opens the tunnel** — v1 shells out to your installed `ngrok` (BYO
    transport; free).

@@ -29,13 +29,16 @@ type Route struct {
 	Name   string
 }
 
-// vitePrefixes are the paths the Vite dev server owns, taken from the proven
-// sail-proxy.conf.template. HMR websockets are additionally routed by their
-// `vite-hmr` subprotocol whatever their path, so no hmr.path config is needed.
+// vitePrefixes are the paths the Vite dev server owns: the set from the
+// proven sail-proxy.conf.template, plus /__laravel_vite_plugin__/ which
+// laravel-vite-plugin v3 uses to serve fonts from the dev server. HMR
+// websockets are additionally routed by their `vite-hmr` subprotocol
+// whatever their path, so no hmr.path config is needed.
 var vitePrefixes = []string{
 	"/@vite/", "/@id/", "/@fs/",
 	"/resources/", "/node_modules/", "/vendor/",
 	"/__vite_hmr",
+	"/__laravel_vite_plugin__/",
 }
 
 // Config describes the upstreams and rewrite inputs for a project.

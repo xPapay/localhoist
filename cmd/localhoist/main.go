@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -28,9 +27,6 @@ import (
 // version is stamped by releases via -ldflags "-X main.version=…".
 var version = "dev"
 
-// envKeys are the .env keys we patch while the tunnel is up.
-var reverbKeys = []string{"REVERB_HOST", "REVERB_PORT", "REVERB_SCHEME"}
-
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "localhoist: %v\n", err)
@@ -44,6 +40,7 @@ func run() error {
 	appFlag := flag.String("app", "", "app upstream URL (overrides the one derived from APP_URL)")
 	noQR := flag.Bool("no-qr", false, "skip the QR code")
 	noPatch := flag.Bool("no-env-patch", false, "don't touch .env (URLs/websockets may break)")
+	forcePatch := flag.Bool("env-patch", false, "patch .env even when the localhoist/laravel middleware is installed (e.g. for URLs in queued emails)")
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
 
@@ -132,30 +129,23 @@ func run() error {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-	patched := []string{}
-	if !*noPatch {
-		keys := append([]string{"APP_URL"}, reverbKeys...)
-		state, err = envfile.SaveState(project.Env, keys)
+	// Only APP_URL needs patching — Echo/Reverb browser config is rewritten
+	// in-flight, and the backend keeps publishing events to Reverb over
+	// localhost. With the localhoist/laravel middleware installed (>= 0.2),
+	// Laravel derives URLs from the tunnel's X-Forwarded-* headers and even
+	// APP_URL can stay untouched.
+	patchEnv := !*noPatch && (*forcePatch || !project.TrustedProxyPackage)
+	patched := false
+	if patchEnv {
+		state, err = envfile.SaveState(project.Env, []string{"APP_URL"})
 		if err != nil {
 			return err
 		}
-		host := strings.TrimPrefix(tun.URL, "https://")
 		if project.Env.Set("APP_URL", tun.URL) {
-			patched = append(patched, "APP_URL")
-		}
-		if project.ReverbUpstream != nil {
-			for k, v := range map[string]string{
-				"REVERB_HOST":   host,
-				"REVERB_PORT":   "443",
-				"REVERB_SCHEME": "https",
-			} {
-				if project.Env.Set(k, v) {
-					patched = append(patched, k)
-				}
+			patched = true
+			if err := project.Env.Save(); err != nil {
+				return err
 			}
-		}
-		if err := project.Env.Save(); err != nil {
-			return err
 		}
 	}
 
@@ -166,14 +156,16 @@ func run() error {
 	for _, r := range routes {
 		fmt.Printf("      %-14s → %s (%s)\n", r.Prefix, r.Target, r.Name)
 	}
-	if len(patched) > 0 {
-		fmt.Printf("  ✔ .env patched: %s\n", strings.Join(patched, ", "))
+	if patched {
+		fmt.Println("  ✔ .env patched: APP_URL (restored on exit)")
+	} else if !*noPatch && project.TrustedProxyPackage {
+		fmt.Println("  ✔ zero .env mutation — localhoist/laravel middleware derives URLs from the tunnel")
 	}
 	fmt.Println()
 	fmt.Printf("  🌍 %s\n", tun.URL)
 	fmt.Println()
 
-	if project.ConfigCached {
+	if project.ConfigCached && patched {
 		fmt.Println("  ⚠ config is cached — run `php artisan config:clear` or the app won't see the new APP_URL")
 	}
 	fmt.Println("  ✔ HMR + Echo rewritten in-flight — no Vite restart needed")
@@ -183,7 +175,11 @@ func run() error {
 		qrterminal.GenerateHalfBlock(tun.URL, qrterminal.L, os.Stdout)
 		fmt.Println()
 	}
-	fmt.Println("  Ctrl+C stops the tunnel and restores .env")
+	if patched {
+		fmt.Println("  Ctrl+C stops the tunnel and restores .env")
+	} else {
+		fmt.Println("  Ctrl+C stops the tunnel")
+	}
 
 	// ── Wait ─────────────────────────────────────────────────────────
 

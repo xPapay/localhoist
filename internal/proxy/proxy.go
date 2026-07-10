@@ -115,6 +115,11 @@ func (m *Mux) newProxy(role string, target *url.URL) *httputil.ReverseProxy {
 			}
 			r.Out.Header.Set("X-Forwarded-Host", r.In.Host)
 
+			// Marker for the localhoist/laravel middleware: combined with
+			// a loopback REMOTE_ADDR it tells Laravel this proxy may be
+			// trusted, which replaces the APP_URL .env patch.
+			r.Out.Header.Set("X-Localhoist", "1")
+
 			// Responses we may rewrite must arrive uncompressed.
 			if m.mayRewrite(role, r.Out) {
 				r.Out.Header.Set("Accept-Encoding", "identity")

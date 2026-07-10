@@ -13,6 +13,7 @@ class ShareCommand extends Command
         {--domain= : Static tunnel domain (e.g. my-app.ngrok-free.dev)}
         {--no-qr : Skip the QR code}
         {--no-env-patch : Do not touch .env (URLs/websockets may break)}
+        {--env-patch : Patch .env even though the middleware handles URLs (e.g. for links in queued emails)}
         {--binary= : Path to the localhoist binary (overrides auto-detection)}';
 
     protected $description = 'Put this app online — Vite HMR, Reverb websockets, and signed URLs all working through one tunnel';
@@ -67,6 +68,9 @@ class ShareCommand extends Command
         }
         if ($this->option('no-env-patch')) {
             $args[] = '--no-env-patch';
+        }
+        if ($this->option('env-patch')) {
+            $args[] = '--env-patch';
         }
 
         return $args;

@@ -95,3 +95,54 @@ func TestDetectRejectsNonLaravelDir(t *testing.T) {
 		t.Fatal("expected an error for a directory without artisan")
 	}
 }
+
+func TestTrustedProxyPackageDetection(t *testing.T) {
+	lock := func(version string) string {
+		return `{"packages": [], "packages-dev": [{"name": "localhoist/laravel", "version": "` + version + `"}]}`
+	}
+	cases := []struct {
+		name string
+		lock string // empty = no composer.lock
+		want bool
+	}{
+		{"v0.2.0 dev dependency", lock("v0.2.0"), true},
+		{"unprefixed 0.3.1", lock("0.3.1"), true},
+		{"future 1.0.0", lock("1.0.0"), true},
+		{"too old v0.1.1", lock("v0.1.1"), false},
+		{"dev-main is conservative", lock("dev-main"), false},
+		{"other packages only", `{"packages": [{"name": "laravel/framework", "version": "v13.0.0"}], "packages-dev": []}`, false},
+		{"no composer.lock", "", false},
+		{"corrupt lock file", `{not json`, false},
+	}
+	for _, tc := range cases {
+		dir := project(t, "APP_URL=http://localhost\n")
+		if tc.lock != "" {
+			if err := os.WriteFile(filepath.Join(dir, "composer.lock"), []byte(tc.lock), 0644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		p, err := Detect(dir)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if p.TrustedProxyPackage != tc.want {
+			t.Errorf("%s: TrustedProxyPackage = %v, want %v", tc.name, p.TrustedProxyPackage, tc.want)
+		}
+	}
+}
+
+// The package as a regular (non-dev) dependency must also count.
+func TestTrustedProxyPackageInRequire(t *testing.T) {
+	dir := project(t, "APP_URL=http://localhost\n")
+	lock := `{"packages": [{"name": "localhoist/laravel", "version": "v0.2.0"}], "packages-dev": []}`
+	if err := os.WriteFile(filepath.Join(dir, "composer.lock"), []byte(lock), 0644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Detect(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.TrustedProxyPackage {
+		t.Error("package in require (not require-dev) was not detected")
+	}
+}

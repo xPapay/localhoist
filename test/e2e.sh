@@ -2,9 +2,10 @@
 # End-to-end harness for the localhoist binary. Uses a fake ngrok on PATH, so it
 # runs entirely offline and publishes nothing.
 #
-#   Scenario 1: clean run patches .env, SIGINT restores it byte-for-byte
+#   Scenario 1: clean run patches APP_URL only, SIGINT restores byte-for-byte
 #   Scenario 2: SIGKILL mid-run, next start recovers the original values
 #   Scenario 3: the mux proxies real requests and 502s dead upstreams
+#   Scenario 4: localhoist/laravel >= 0.2 in composer.lock → zero .env mutation
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -71,9 +72,10 @@ fail() { echo "FAIL: $*"; echo "--- output ---"; cat "$WORK/out.log"; exit 1; }
 # ── Scenario 1: clean run + SIGINT restore ───────────────────────────
 run_expose
 grep -q "APP_URL=https://fake123.ngrok-free.app" "$PROJ/.env" || fail "APP_URL not patched"
-grep -q "REVERB_HOST=fake123.ngrok-free.app"     "$PROJ/.env" || fail "REVERB_HOST not patched"
-grep -q "REVERB_PORT=443"                        "$PROJ/.env" || fail "REVERB_PORT not patched"
-grep -q "REVERB_SCHEME=https"                    "$PROJ/.env" || fail "REVERB_SCHEME not patched"
+# REVERB_* must stay untouched: the browser config is rewritten in-flight
+# and the backend publishes to Reverb over localhost.
+grep -q 'REVERB_HOST="localhost"' "$PROJ/.env" || fail "REVERB_HOST was patched — it must not be"
+grep -q "REVERB_PORT=8080"        "$PROJ/.env" || fail "REVERB_PORT was patched — it must not be"
 [ -f "$PROJ/.env.localhoist-state.json" ] || fail "state file missing while running"
 
 kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
@@ -127,6 +129,27 @@ echo "$BODY" | grep -q 'src="http://phone.example.test/@vite/client"' \
 echo "$BODY" | grep -q '\[::1\]:5173' && fail "hot origin survived in HTML: $BODY"
 kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
 echo "PASS: mux proxies requests, rewrites HTML in-flight, and 502s dead upstreams"
+
+# ── Scenario 4: middleware package installed → zero .env mutation ────
+cat > "$PROJ/composer.lock" <<'EOF'
+{"packages": [], "packages-dev": [{"name": "localhoist/laravel", "version": "v0.2.0"}]}
+EOF
+
+run_expose
+grep -q "zero .env mutation" "$WORK/out.log" || fail "zero-mutation banner missing"
+diff -u "$PROJ/.env.orig" "$PROJ/.env" || fail ".env was touched despite the middleware package"
+[ ! -f "$PROJ/.env.localhoist-state.json" ] && echo ok > /dev/null || fail "state file created despite zero mutation"
+kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
+
+# --env-patch must force the old behavior even with the package installed.
+: > "$WORK/out.log"
+PATH="$FAKEBIN:$PATH" "$WORK/localhoist" --dir "$PROJ" --no-qr --env-patch > "$WORK/out.log" 2>&1 &
+EXPOSE_PID=$!
+for i in $(seq 1 50); do grep -q "🌍" "$WORK/out.log" 2>/dev/null && break; sleep 0.1; done
+grep -q "APP_URL=https://fake123.ngrok-free.app" "$PROJ/.env" || fail "--env-patch did not force patching"
+kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
+diff -u "$PROJ/.env.orig" "$PROJ/.env" || fail ".env not restored after forced patch run"
+echo "PASS: middleware package enables zero .env mutation (--env-patch overrides)"
 
 echo
 echo "ALL E2E SCENARIOS PASSED"

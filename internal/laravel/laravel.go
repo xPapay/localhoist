@@ -3,11 +3,13 @@
 package laravel
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/xPapay/localhoist/internal/envfile"
 )
@@ -32,6 +34,11 @@ type Project struct {
 	// ConfigCached reports whether bootstrap/cache/config.php exists, in
 	// which case .env patches won't reach the app until config:clear.
 	ConfigCached bool
+	// TrustedProxyPackage reports whether composer.lock records
+	// localhoist/laravel >= 0.2 — the version whose middleware derives
+	// URLs from the tunnel's X-Forwarded-* headers, making the APP_URL
+	// patch unnecessary.
+	TrustedProxyPackage bool
 }
 
 // Detect loads the project at dir. It requires an `artisan` file and a `.env`.
@@ -80,7 +87,51 @@ func Detect(dir string) (*Project, error) {
 		p.ConfigCached = true
 	}
 
+	p.TrustedProxyPackage = hasTrustedProxyPackage(dir)
+
 	return p, nil
+}
+
+// hasTrustedProxyPackage checks composer.lock for localhoist/laravel >= 0.2.
+// Dev versions (e.g. "dev-main", path repos) report false — better to patch
+// .env unnecessarily than to silently skip it without the middleware; use
+// --no-env-patch to override.
+func hasTrustedProxyPackage(dir string) bool {
+	data, err := os.ReadFile(filepath.Join(dir, "composer.lock"))
+	if err != nil {
+		return false
+	}
+	var lock struct {
+		Packages    []lockPackage `json:"packages"`
+		PackagesDev []lockPackage `json:"packages-dev"`
+	}
+	if err := json.Unmarshal(data, &lock); err != nil {
+		return false
+	}
+	for _, pkg := range append(lock.Packages, lock.PackagesDev...) {
+		if pkg.Name == "localhoist/laravel" {
+			return versionAtLeast(pkg.Version, 0, 2)
+		}
+	}
+	return false
+}
+
+type lockPackage struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+func versionAtLeast(v string, wantMajor, wantMinor int) bool {
+	parts := strings.SplitN(strings.TrimPrefix(v, "v"), ".", 3)
+	if len(parts) < 2 {
+		return false
+	}
+	major, err1 := strconv.Atoi(parts[0])
+	minor, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	return major > wantMajor || (major == wantMajor && minor >= wantMinor)
 }
 
 // deriveAppUpstream turns APP_URL into the local address the app answers on.

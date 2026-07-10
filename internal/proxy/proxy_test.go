@@ -21,6 +21,7 @@ func upstream(t *testing.T, name string) *url.URL {
 		w.Header().Set("X-Seen-Host", r.Host)
 		w.Header().Set("X-Seen-Proto", r.Header.Get("X-Forwarded-Proto"))
 		w.Header().Set("X-Seen-Fwd-Host", r.Header.Get("X-Forwarded-Host"))
+		w.Header().Set("X-Seen-Marker", r.Header.Get("X-Localhoist"))
 		io.WriteString(w, name+":"+r.URL.Path)
 	}))
 	t.Cleanup(srv.Close)
@@ -150,6 +151,9 @@ func TestHostAndForwardedHeaders(t *testing.T) {
 	}
 	if got := app.Header.Get("X-Seen-Fwd-Host"); got != "abc123.ngrok-free.app" {
 		t.Errorf("X-Forwarded-Host was %q, want the tunnel host", got)
+	}
+	if got := app.Header.Get("X-Seen-Marker"); got != "1" {
+		t.Errorf("X-Localhoist marker was %q, want \"1\" (the middleware keys on it)", got)
 	}
 
 	vite := get("/@id/mod")

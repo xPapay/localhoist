@@ -48,12 +48,15 @@ Working binary + `php artisan share`, BYO ngrok transport, zero-config HMR/Echo 
 - **`internal/tunnel`** — BYO transport. Spawns `ngrok` in its own process
   group and reads the tunnel URL from its JSON log stream instead of polling
   the local API port, so it can't collide with another running ngrok agent.
-- **`packages/laravel`** — the Composer package:
-  `php artisan share`. A thin wrapper that locates the binary
+- **`packages/laravel`** — the Composer package, two things in one:
+  `php artisan share`, a thin wrapper that locates the binary
   (`LOCALHOIST_BINARY` → PATH → `~/.localhoist/bin` cache → GitHub release
   download, tailwindcss-standalone style), hands it the real TTY, and
-  passes flags through. Warns Sail users when run inside a container —
-  the tunnel needs the host's ports.
+  passes flags through (warns Sail users when run inside a container);
+  and the `TrustLocalhoistProxy` middleware, auto-registered in the
+  `local` environment, which trusts the mux for loopback requests carrying
+  its marker header — the binary detects the package via composer.lock and
+  skips `.env` patching entirely.
 
 ## Usage
 
@@ -99,15 +102,27 @@ Flags: `--dir` (project path), `--domain` (static tunnel domain, or set
    - HTML pages: the dev-server origin that `@vite` baked into script tags
      (from `public/hot`, e.g. `http://[::1]:5173`) is replaced with the
      tunnel origin.
-5. **Patches `.env`** — `APP_URL`, `REVERB_HOST`, `REVERB_PORT=443`,
-   `REVERB_SCHEME=https` point at the tunnel while it runs, so server-side
-   URL generation (signed URLs, redirects, assets) is correct. Originals
-   are snapshotted to `.env.localhoist-state.json` first, so even after a crash
-   or `kill -9` the next run restores your file byte-for-byte. On exit the
-   patch is reverted and the snapshot removed.
+5. **Keeps server-side URLs correct** — signed URLs, redirects, assets:
+   - With `localhoist/laravel` (>= 0.2) installed: **zero `.env` mutation**.
+     The mux stamps every request with an `X-Localhoist` marker; the
+     package's middleware trusts the proxy only for loopback requests
+     carrying that marker (and only in the `local` environment), so Laravel
+     derives scheme + host from the tunnel's `X-Forwarded-*` headers.
+     Spoofed forwarded headers without the marker stay ignored.
+   - Without the package: `APP_URL` is patched while the tunnel runs. The
+     original is snapshotted to `.env.localhoist-state.json` first, so even
+     after a crash or `kill -9` the next run restores your file
+     byte-for-byte. On exit the patch is reverted and the snapshot removed.
+   - `REVERB_*` keys are never touched: the browser side is rewritten
+     in-flight, and your backend keeps publishing events to Reverb over
+     localhost instead of round-tripping through the tunnel.
+   - Edge case: URLs generated outside a request (queued emails) still come
+     from `APP_URL` — pass `--env-patch` to force the patch when you need
+     those to point at the tunnel.
 
-Tip: add `.env.localhoist-state.json` to your project's `.gitignore` (it holds
-no secrets — just the original values of the four patched keys).
+Tip: if you don't use the composer package, add `.env.localhoist-state.json`
+to your project's `.gitignore` (it holds no secrets — just the original
+`APP_URL`).
 
 ## Building and running
 
@@ -149,11 +164,12 @@ bash test/e2e.sh    # end-to-end: patch → run → restore, crash recovery,
 - [x] In-flight rewriting: `/@vite/client` HMR config, `import.meta.env`
       Reverb values, and `@vite` script-tag origins (no Vite restart, no
       config needed)
-- [x] `php artisan share` composer wrapper (auto-downloads the binary;
-      publish to Packagist once named + binaries released)
-- [ ] Binary releases (GitHub) so the wrapper's auto-download works
+- [x] `php artisan share` composer wrapper (auto-downloads the binary)
+- [x] Binary releases (GitHub) + Packagist split repo
+- [x] Trusted-proxy middleware in `localhoist/laravel` — zero `.env`
+      mutation (the planned `localhoist/ready` package, folded in; the JS
+      Echo helper became unnecessary once the in-flight rewrite shipped)
 - [ ] Custom route escape hatch (config file)
 - [ ] Own relay + stable custom subdomains (paid tier)
 - [ ] Sail/Docker service image
-- [ ] `localhoist/ready` composer package (trusted-proxy middleware + Echo helper, zero `.env` mutation)
 - [ ] Tray app (tunnels list, request inspector, QR)

@@ -3,7 +3,8 @@
 `php artisan share` — the Laravel-native entry point for
 [localhoist](https://github.com/xPapay/localhoist). Puts your local dev
 environment online with Vite HMR, Reverb websockets, and signed URLs all
-working through one tunnel, zero config.
+working through one tunnel, zero config. With this package installed,
+localhoist also stops touching your `.env` entirely.
 
 > Development happens in the [localhoist monorepo](https://github.com/xPapay/localhoist)
 > (`packages/laravel`); this repository is a read-only split for Composer.
@@ -37,6 +38,24 @@ php artisan share
 php artisan share --domain=my-app.ngrok-free.dev
 php artisan share --no-qr
 ```
+
+## Zero `.env` mutation
+
+The package ships a `TrustLocalhoistProxy` middleware, auto-registered in
+the `local` environment. The localhoist mux stamps every proxied request
+with an `X-Localhoist` marker; the middleware trusts the proxy only when
+the request comes from loopback **and** carries that marker. Laravel then
+derives scheme and host from the tunnel's `X-Forwarded-*` headers, so
+`url()`, `asset()`, redirects, and signed URLs are generated against the
+public https origin — with `.env` untouched.
+
+The binary detects this package in `composer.lock` (>= 0.2) and skips its
+`.env` patching automatically. Forwarded headers on requests without the
+marker are ignored, and nothing is trusted outside the `local` environment.
+
+Edge case: URLs generated outside a request (e.g. links in queued emails)
+still come from `APP_URL`. Run `php artisan share --env-patch` when you
+need those pointing at the tunnel.
 
 ## How it finds the binary
 

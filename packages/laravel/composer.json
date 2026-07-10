@@ -2,7 +2,18 @@
     "name": "localhoist/laravel",
     "description": "php artisan share — put your local Laravel dev environment online with Vite HMR, Reverb websockets, and signed URLs all working through one tunnel.",
     "license": "MIT",
-    "keywords": ["laravel", "tunnel", "share", "ngrok", "vite", "hmr", "reverb"],
+    "keywords": ["laravel", "tunnel", "share", "ngrok", "vite", "hmr", "reverb", "localhoist"],
+    "homepage": "https://localhoist.dev",
+    "authors": [
+        {
+            "name": "Lukas Papay",
+            "email": "papay.lukas@gmail.com"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/xPapay/localhoist/issues",
+        "source": "https://github.com/xPapay/localhoist"
+    },
     "require": {
         "php": "^8.2",
         "illuminate/console": "^11.0|^12.0|^13.0",

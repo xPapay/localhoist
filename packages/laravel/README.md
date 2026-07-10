@@ -1,9 +1,13 @@
 # localhoist/laravel
 
 `php artisan share` — the Laravel-native entry point for
-[localhoist](../../README.md). Puts your local dev environment online with Vite
-HMR, Reverb websockets, and signed URLs all working through one tunnel,
-zero config.
+[localhoist](https://github.com/xPapay/localhoist). Puts your local dev
+environment online with Vite HMR, Reverb websockets, and signed URLs all
+working through one tunnel, zero config.
+
+> Development happens in the [localhoist monorepo](https://github.com/xPapay/localhoist)
+> (`packages/laravel`); this repository is a read-only split for Composer.
+> Report issues there.
 
 ## Install
 
@@ -11,7 +15,15 @@ zero config.
 composer require --dev localhoist/laravel
 ```
 
-While the package is unpublished, use a path repository:
+If the package isn't on Packagist yet, install straight from the split
+repository:
+
+```sh
+composer config repositories.localhoist vcs https://github.com/xPapay/localhoist-laravel
+composer require --dev "localhoist/laravel:^0.1"
+```
+
+Hacking on the monorepo? Use a path repository instead:
 
 ```sh
 composer config repositories.localhoist path /path/to/localhoist/packages/laravel

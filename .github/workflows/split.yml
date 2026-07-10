@@ -1,0 +1,39 @@
+name: Split packages/laravel
+
+# Mirrors packages/laravel to the read-only split repo
+# github.com/xPapay/localhoist-laravel so Composer/Packagist can consume it.
+# Pushes to main sync the mirror's main; v* tags are mirrored as tags.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up deploy key
+        env:
+          DEPLOY_KEY: ${{ secrets.LARAVEL_SPLIT_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Split and push
+        run: |
+          REMOTE="git@github.com:xPapay/localhoist-laravel.git"
+          SPLIT_SHA=$(git subtree split --prefix=packages/laravel HEAD)
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            git push "$REMOTE" "$SPLIT_SHA:refs/tags/$TAG"
+          else
+            # The mirror is derived state — force keeps it exact.
+            git push --force "$REMOTE" "$SPLIT_SHA:refs/heads/main"
+          fi

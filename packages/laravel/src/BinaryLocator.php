@@ -16,7 +16,7 @@ use Symfony\Component\Process\ExecutableFinder;
 class BinaryLocator
 {
     /** The binary release this wrapper version is pinned to. */
-    public const VERSION = '0.2.2';
+    public const VERSION = '0.2.3';
 
     /** %s placeholders: version, asset name. */
     private const RELEASE_URL = 'https://github.com/xPapay/localhoist/releases/download/v%s/%s';

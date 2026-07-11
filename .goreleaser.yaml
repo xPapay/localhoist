@@ -25,6 +25,23 @@ archives:
 checksum:
   name_template: checksums.txt
 
+# Signs (Developer ID) and notarizes the darwin binaries via quill — pure
+# Go, no macOS runner needed. Dormant until the MACOS_* secrets exist, so
+# releases work unsigned before the Apple Developer account is set up.
+# One-time credential setup: docs/macos-signing.md
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      sign:
+        certificate: "{{ .Env.MACOS_SIGN_P12 }}"
+        password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
+      notarize:
+        issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
+        key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"
+        key: "{{ .Env.MACOS_NOTARY_KEY }}"
+        wait: true
+        timeout: 20m
+
 # Publishes a cask to github.com/xPapay/homebrew-tap on each release:
 # `brew install xPapay/tap/localhoist`. Casks are macOS-only; Linux users
 # install via go install or the release binaries directly.

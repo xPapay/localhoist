@@ -176,7 +176,8 @@
       counter-reset: step;
       margin: 0; padding: 0;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+      /* 2×2 on desktop — four steps, no orphan row */
+      grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
       gap: 1rem;
     }
     ol.steps li {

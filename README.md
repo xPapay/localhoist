@@ -9,6 +9,8 @@ dev setup in three places: HMR keeps pointing at `localhost:5173`, Echo keeps
 pointing at `localhost:8080`, and the `APP_URL` mismatch breaks signed URLs
 and asset generation. This tool fixes all three.
 
+![Terminal demo: localhoist prints the route table, a public URL, and a QR code](web/demo.gif)
+
 ## Status
 
 Working binary + `php artisan share`, BYO ngrok transport, zero-config HMR/Echo through the tunnel. See [Roadmap](#roadmap).

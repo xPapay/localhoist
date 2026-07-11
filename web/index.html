@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>localhoist — artisan share that actually works</title>
+  <meta name="description" content="One command puts your local Laravel app online — Vite HMR, Reverb websockets, and signed URLs all working through a single tunnel. Zero config, zero restarts, zero .env mutation.">
+  <meta property="og:title" content="localhoist — artisan share that actually works">
+  <meta property="og:description" content="Tunnel your local Laravel dev environment with Vite HMR, Reverb websockets, and signed URLs all working. Zero config.">
+  <meta property="og:url" content="https://localhoist.io">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231e1e2e'/%3E%3Ctext x='50' y='72' font-size='58' font-family='monospace' fill='%23a6e3a1' text-anchor='middle'%3E%E2%86%91%3C/text%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #14141f;
+      --surface: #1e1e2e;      /* matches the demo GIF's terminal background */
+      --surface-2: #262637;
+      --border: #313145;
+      --text: #cdd6f4;
+      --muted: #9399b2;
+      --accent: #b4befe;
+      --green: #a6e3a1;
+      --red: #f38ba8;
+      --yellow: #f9e2af;
+      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 68rem; margin: 0 auto; padding: 0 1.25rem; }
+
+    header.hero { padding: 4.5rem 0 3rem; text-align: center; }
+    .wordmark {
+      font-family: var(--mono);
+      font-size: clamp(2.2rem, 6vw, 3.4rem);
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+    .wordmark .prompt { color: var(--green); }
+    .tagline {
+      font-family: var(--mono);
+      font-size: clamp(1.05rem, 2.6vw, 1.4rem);
+      color: var(--accent);
+      margin: 0.75rem 0 0;
+    }
+    .sub {
+      max-width: 42rem;
+      margin: 1.25rem auto 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+    .sub strong { color: var(--text); font-weight: 600; }
+    .zeros {
+      font-family: var(--mono);
+      margin: 1.5rem 0 0;
+      color: var(--green);
+      font-size: 0.95rem;
+    }
+    .zeros span { white-space: nowrap; }
+    .zeros span + span::before { content: " · "; color: var(--border); }
+
+    .install-strip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-top: 2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 0.6rem;
+      padding: 0.7rem 0.9rem 0.7rem 1.1rem;
+      font-family: var(--mono);
+      font-size: 0.95rem;
+      max-width: 100%;
+      overflow-x: auto;
+    }
+    .install-strip code { white-space: nowrap; }
+    .install-strip .dollar { color: var(--green); user-select: none; }
+
+    .copy {
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      background: var(--surface-2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 0.4rem;
+      padding: 0.25rem 0.6rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: color 120ms, border-color 120ms;
+    }
+    .copy:hover { color: var(--text); border-color: var(--accent); }
+    .copy[data-copied] { color: var(--green); border-color: var(--green); }
+
+    .terminal {
+      margin: 3rem auto 0;
+      max-width: 56rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 0.9rem;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgb(0 0 0 / 0.45);
+      text-align: left;
+    }
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .terminal-bar i {
+      width: 0.72rem; height: 0.72rem;
+      border-radius: 50%;
+      background: var(--border);
+    }
+    .terminal-bar i:nth-child(1) { background: #f38ba8; }
+    .terminal-bar i:nth-child(2) { background: #f9e2af; }
+    .terminal-bar i:nth-child(3) { background: #a6e3a1; }
+    .terminal-bar span {
+      margin-left: 0.5rem;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .terminal img { display: block; width: 100%; height: auto; }
+
+    section { padding: 3.5rem 0 0; }
+    h2 {
+      font-family: var(--mono);
+      font-size: 1.5rem;
+      margin: 0 0 0.4rem;
+    }
+    h2::before { content: "## "; color: var(--border); }
+    .lede { color: var(--muted); margin: 0 0 2rem; max-width: 44rem; }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+      gap: 1rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 0.7rem;
+      padding: 1.25rem 1.35rem;
+    }
+    .card h3 {
+      font-family: var(--mono);
+      font-size: 0.98rem;
+      margin: 0 0 0.5rem;
+      display: flex;
+      gap: 0.55rem;
+      align-items: baseline;
+    }
+    .card p { margin: 0; color: var(--muted); font-size: 0.93rem; }
+    .card code { font-family: var(--mono); font-size: 0.86em; color: var(--text); }
+    .mark-broken { color: var(--red); }
+    .mark-fixed { color: var(--green); }
+    .fixline {
+      margin: 1.75rem 0 0;
+      font-family: var(--mono);
+      color: var(--green);
+      font-size: 0.98rem;
+    }
+
+    ol.steps {
+      list-style: none;
+      counter-reset: step;
+      margin: 0; padding: 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+      gap: 1rem;
+    }
+    ol.steps li {
+      counter-increment: step;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 0.7rem;
+      padding: 1.25rem 1.35rem;
+    }
+    ol.steps li::before {
+      content: "0" counter(step);
+      font-family: var(--mono);
+      color: var(--accent);
+      display: block;
+      font-size: 0.8rem;
+      margin-bottom: 0.5rem;
+    }
+    ol.steps h3 { font-size: 1rem; margin: 0 0 0.45rem; font-family: var(--mono); }
+    ol.steps p { margin: 0; color: var(--muted); font-size: 0.93rem; }
+    ol.steps code { font-family: var(--mono); font-size: 0.86em; color: var(--text); }
+
+    .installs {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+      gap: 1rem;
+    }
+    .installs figure {
+      margin: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 0.7rem;
+      overflow: hidden;
+    }
+    .installs figcaption {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--muted);
+      padding: 0.6rem 0.9rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .installs pre {
+      margin: 0;
+      padding: 1rem 0.9rem;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      line-height: 1.7;
+    }
+    .installs pre code .dollar { color: var(--green); user-select: none; }
+
+    .byo {
+      margin-top: 1.5rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+      max-width: 44rem;
+    }
+    .byo a { color: var(--accent); }
+
+    .compat {
+      margin-top: 3.5rem;
+      padding: 1.1rem 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .compat span { white-space: nowrap; }
+    .compat span + span::before { content: "  ·  "; color: var(--border); }
+
+    footer {
+      padding: 2.5rem 0 3.5rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    footer nav ul {
+      list-style: none;
+      margin: 0 0 0.8rem; padding: 0;
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <h1 class="wordmark"><span class="prompt">$</span> localhoist</h1>
+    <p class="tagline">artisan share that actually works.</p>
+    <p class="sub">
+      One command puts your local Laravel app online — <strong>Vite HMR</strong>,
+      <strong>Reverb websockets</strong>, and <strong>signed URLs</strong> all
+      working through a single tunnel. Open it on your phone, send it to a
+      client, test a webhook.
+    </p>
+    <p class="zeros"><span>✔ zero config</span><span>✔ zero restarts</span><span>✔ zero .env mutation</span></p>
+
+    <div class="install-strip">
+      <code><span class="dollar">$</span> brew install xPapay/tap/localhoist</code>
+      <button type="button" class="copy" data-copy="brew install xPapay/tap/localhoist" aria-label="Copy install command">copy</button>
+    </div>
+
+    <figure class="terminal">
+      <div class="terminal-bar" aria-hidden="true"><i></i><i></i><i></i><span>my-app — localhoist</span></div>
+      <img src="demo.gif" alt="Terminal recording: running the localhoist command in a Laravel project prints the route table, a public https URL, and a QR code to open the app on a phone" width="940" height="880" fetchpriority="high">
+    </figure>
+  </header>
+
+  <main>
+    <section aria-labelledby="broken">
+      <h2 id="broken">plain tunnels break modern Laravel</h2>
+      <p class="lede">ngrok and friends forward one port. A modern Laravel dev
+      setup is three servers whose URLs are baked in at boot — so the page
+      loads, and everything else silently dies:</p>
+      <div class="cards">
+        <div class="card">
+          <h3><span class="mark-broken" aria-hidden="true">✗</span> HMR pins to <code>localhost:5173</code></h3>
+          <p>Vite bakes its HMR host when the dev server starts. Through a
+          tunnel, the websocket dials your visitor's own machine — hot reload
+          is dead and the console fills with connection errors.</p>
+        </div>
+        <div class="card">
+          <h3><span class="mark-broken" aria-hidden="true">✗</span> Echo pins to <code>localhost:8080</code></h3>
+          <p>Laravel Echo reads the Reverb host from <code>import.meta.env</code>,
+          frozen at boot. On any other device, websockets never connect —
+          no broadcasts, no presence, no realtime.</p>
+        </div>
+        <div class="card">
+          <h3><span class="mark-broken" aria-hidden="true">✗</span> <code>APP_URL</code> disagrees with reality</h3>
+          <p>Signed URLs 403, redirects bounce to localhost, asset origins
+          break. Laravel generates URLs for the host it thinks it has — not
+          the tunnel your phone is visiting.</p>
+        </div>
+      </div>
+      <p class="fixline">✔ localhoist fixes all three in-flight, as the responses stream through the tunnel.</p>
+    </section>
+
+    <section aria-labelledby="how">
+      <h2 id="how">how it works</h2>
+      <p class="lede">A single Go binary. No agents, no dashboard, no YAML.</p>
+      <ol class="steps">
+        <li>
+          <h3>detects your project</h3>
+          <p>Reads <code>.env</code> and finds your app, Vite, and Reverb —
+          Sail, Herd, or Valet. No flags needed.</p>
+        </li>
+        <li>
+          <h3>starts a smart mux</h3>
+          <p>One public hostname, routed to all three local servers with
+          websocket upgrades. HMR sockets are recognized by their
+          <code>vite-hmr</code> subprotocol on any path.</p>
+        </li>
+        <li>
+          <h3>opens the tunnel</h3>
+          <p>Drives the ngrok you already have, prints the public URL — and a
+          QR code, so it's on your phone in seconds.</p>
+        </li>
+        <li>
+          <h3>rewrites in-flight</h3>
+          <p>The baked HMR host in <code>/@vite/client</code>, Echo's Reverb
+          config, and <code>@vite</code> script-tag origins are fixed as they
+          pass through. Stock <code>vite.config.js</code>, no dev-server
+          restart.</p>
+        </li>
+      </ol>
+      <p class="byo">With the composer package installed, a trusted-proxy
+      middleware derives every URL from the tunnel's forwarded headers —
+      your <code>.env</code> is never touched at all.</p>
+    </section>
+
+    <section aria-labelledby="install">
+      <h2 id="install">install</h2>
+      <p class="lede">Then <code>cd</code> into any Laravel app and run
+      <code>localhoist</code> — or <code>php artisan share</code>.</p>
+      <div class="installs">
+        <figure>
+          <figcaption>macOS — Homebrew
+            <button type="button" class="copy" data-copy="brew install xPapay/tap/localhoist" aria-label="Copy Homebrew install command">copy</button>
+          </figcaption>
+          <pre tabindex="0"><code><span class="dollar">$</span> brew install xPapay/tap/localhoist</code></pre>
+        </figure>
+        <figure>
+          <figcaption>Laravel — Composer
+            <button type="button" class="copy" data-copy="composer require --dev localhoist/laravel" aria-label="Copy Composer install command">copy</button>
+          </figcaption>
+          <pre tabindex="0"><code><span class="dollar">$</span> composer require --dev localhoist/laravel
+<span class="dollar">$</span> php artisan share</code></pre>
+        </figure>
+        <figure>
+          <figcaption>anywhere — Go
+            <button type="button" class="copy" data-copy="go install github.com/xPapay/localhoist/cmd/localhoist@latest" aria-label="Copy Go install command">copy</button>
+          </figcaption>
+          <pre tabindex="0"><code><span class="dollar">$</span> go install github.com/xPapay/localhoist/cmd/localhoist@latest</code></pre>
+        </figure>
+      </div>
+      <p class="byo">Transport is your own <a href="https://ngrok.com/download">ngrok</a>
+      today — free, and your traffic stays between your machine and theirs. A
+      hosted relay with stable subdomains is on the
+      <a href="https://github.com/xPapay/localhoist#roadmap">roadmap</a>.</p>
+    </section>
+  </main>
+
+  <p class="compat">
+    <span>Laravel 11–13</span><span>Vite 5–8</span><span>Reverb</span><span>Sail · Herd · Valet</span><span>macOS · Linux</span>
+  </p>
+
+  <footer>
+    <nav aria-label="Project links">
+      <ul>
+        <li><a href="https://github.com/xPapay/localhoist">GitHub</a></li>
+        <li><a href="https://packagist.org/packages/localhoist/laravel">Packagist</a></li>
+        <li><a href="https://github.com/xPapay/homebrew-tap">Homebrew tap</a></li>
+      </ul>
+    </nav>
+    <p>MIT licensed. Built for the Laravel ecosystem.</p>
+  </footer>
+
+</div>
+
+<script>
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.copy');
+    if (!btn) return;
+    try {
+      await navigator.clipboard.writeText(btn.dataset.copy);
+      btn.textContent = 'copied';
+      btn.setAttribute('data-copied', '');
+      setTimeout(() => {
+        btn.textContent = 'copy';
+        btn.removeAttribute('data-copied');
+      }, 1600);
+    } catch { /* clipboard unavailable (e.g. non-secure context) */ }
+  });
+</script>
+
+</body>
+</html>

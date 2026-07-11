@@ -131,9 +131,12 @@ and authenticated (`ngrok config add-authtoken …`) — transport is BYO in
 this version.
 
 ```sh
-# install a released binary
+# macOS
+brew install xPapay/tap/localhoist
+
+# Linux / any platform with Go
 go install github.com/xPapay/localhoist/cmd/localhoist@latest
-# …or grab one from https://github.com/xPapay/localhoist/releases
+# …or grab a binary from https://github.com/xPapay/localhoist/releases
 
 # or build from source
 go build -o localhoist ./cmd/localhoist

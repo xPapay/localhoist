@@ -25,5 +25,23 @@ archives:
 checksum:
   name_template: checksums.txt
 
+# Publishes a cask to github.com/xPapay/homebrew-tap on each release:
+# `brew install xPapay/tap/localhoist`. Casks are macOS-only; Linux users
+# install via go install or the release binaries directly.
+homebrew_casks:
+  - name: localhoist
+    repository:
+      owner: xPapay
+      name: homebrew-tap
+      branch: main
+      git:
+        url: "git@github.com:xPapay/homebrew-tap.git"
+        private_key: "{{ .Env.HOMEBREW_TAP_DEPLOY_KEY }}"
+    homepage: "https://localhoist.dev"
+    description: "artisan share that actually works — tunnel your local Laravel dev env with Vite HMR, Reverb websockets, and signed URLs working"
+    commit_author:
+      name: localhoist-release-bot
+      email: papay.lukas@gmail.com
+
 changelog:
   use: git

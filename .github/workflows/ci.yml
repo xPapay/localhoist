@@ -19,3 +19,12 @@ jobs:
       - name: PHP syntax check (composer package)
         run: |
           for f in packages/laravel/src/*.php; do php -l "$f"; done
+
+  goreleaser-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: check

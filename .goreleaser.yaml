@@ -54,7 +54,7 @@ homebrew_casks:
       git:
         url: "git@github.com:xPapay/homebrew-tap.git"
         private_key: "{{ .Env.HOMEBREW_TAP_DEPLOY_KEY }}"
-    homepage: "https://localhoist.dev"
+    homepage: "https://localhoist.io"
     description: "artisan share that actually works — tunnel your local Laravel dev env with Vite HMR, Reverb websockets, and signed URLs working"
     commit_author:
       name: localhoist-release-bot

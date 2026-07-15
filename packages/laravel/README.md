@@ -34,10 +34,16 @@ composer require --dev "localhoist/laravel:*@dev"
 ## Usage
 
 ```sh
-php artisan share
-php artisan share --domain=my-app.ngrok-free.dev
+php artisan share                              # Cloudflare quick tunnel — free, no account
+php artisan share --transport=ngrok            # ngrok instead (needs an authtoken)
+php artisan share --domain=my-app.ngrok-free.dev   # stable domain (implies ngrok)
 php artisan share --no-qr
 ```
+
+The default transport is a Cloudflare quick tunnel: no account, no setup, a
+random `*.trycloudflare.com` URL per run. Prefer ngrok every time? Save it
+once — `localhoist config set transport ngrok` — and `php artisan share`
+picks it up.
 
 ## Which command? (it runs on your host)
 

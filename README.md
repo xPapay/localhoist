@@ -13,13 +13,16 @@ and asset generation. This tool fixes all three.
 
 ## Status
 
-Working binary + `php artisan share`, BYO ngrok transport, zero-config HMR/Echo through the tunnel. See [Roadmap](#roadmap).
+Working binary + `php artisan share`, zero-config HMR/Echo through the tunnel.
+Default transport is a Cloudflare quick tunnel (free, **no account needed**);
+ngrok is one `--transport ngrok` away for stable domains. See [Roadmap](#roadmap).
 
 ## What exists now
 
 - **`cmd/localhoist`** — the CLI. Detects the project, starts the mux on an
-  ephemeral port, spawns your installed ngrok, patches `.env`, prints the
-  public URL + QR code, and restores everything on `Ctrl+C`.
+  ephemeral port, opens the tunnel (cloudflared by default, or your ngrok),
+  patches `.env`, prints the public URL + QR code, and restores everything
+  on `Ctrl+C`. `localhoist config` shows and changes the saved defaults.
 - **`internal/proxy`** — the smart mux that replaces the hand-rolled nginx
   service: `/app/` → Reverb, the Vite paths → the Vite dev server,
   everything else → the app, with websocket upgrades handled by Go's
@@ -47,9 +50,15 @@ Working binary + `php artisan share`, BYO ngrok transport, zero-config HMR/Echo 
   (`myapp.test`) both work; the Reverb route switches on only when the
   project actually uses Reverb; warns when Laravel's config cache would
   swallow the `.env` patch.
-- **`internal/tunnel`** — BYO transport. Spawns `ngrok` in its own process
-  group and reads the tunnel URL from its JSON log stream instead of polling
-  the local API port, so it can't collide with another running ngrok agent.
+- **`internal/tunnel`** — the transports, both BYO binary: Cloudflare quick
+  tunnels (`cloudflared`, the default — free, no account) and `ngrok`
+  (stable custom domains). Each is spawned in its own process group and the
+  public URL is read from its log stream instead of polling a local API
+  port, so it can't collide with another running agent. Missing binary?
+  On a terminal with Homebrew it offers to `brew install` it for you.
+- **`internal/config`** — layered settings: `--transport` flag >
+  `.localhoist.json` (project) > `~/.config/localhoist/config.json`
+  (global, `$XDG_CONFIG_HOME` respected) > built-in default (cloudflare).
 - **`packages/laravel`** — the Composer package, two things in one:
   `php artisan share`, a thin wrapper that locates the binary
   (`LOCALHOIST_BINARY` → PATH → `~/.localhoist/bin` cache → GitHub release
@@ -71,9 +80,27 @@ php artisan share # …or via the Composer package (localhoist/laravel)
 That's it. You get a public URL and a QR code to open it on your phone.
 `Ctrl+C` stops the tunnel and restores everything.
 
-Flags: `--dir` (project path), `--domain` (static tunnel domain, or set
-`NGROK_TUNNEL_URL` in `.env`), `--app` (override the app upstream),
-`--no-qr`, `--no-env-patch`.
+Flags: `--dir` (project path), `--transport` (see below), `--domain`
+(static tunnel domain, ngrok only — or set `NGROK_TUNNEL_URL` in `.env`),
+`--app` (override the app upstream), `--no-qr`, `--no-env-patch`.
+
+### Transports
+
+| | `cloudflare` (default) | `ngrok` |
+|---|---|---|
+| Account | **none needed** | free ngrok account (`ngrok config add-authtoken …`) |
+| URL | random `*.trycloudflare.com` per run | random, **or a stable custom domain** |
+| Binary | `cloudflared` (installed with the brew cask) | `ngrok` |
+
+```sh
+localhoist --transport ngrok               # one-off override
+localhoist config set transport ngrok      # save as your default (global)
+localhoist config set --project transport ngrok   # just for this repo (.localhoist.json)
+localhoist config                          # show what's effective, and from where
+```
+
+Setting `--domain` (or `NGROK_TUNNEL_URL`) implies ngrok — quick tunnels
+can't serve custom domains.
 
 ## What it does
 
@@ -88,8 +115,9 @@ Flags: `--dir` (project path), `--domain` (static tunnel domain, or set
    | `/app/…` | Reverb (websockets) |
    | `/@vite/`, `/@id/`, `/@fs/`, `/resources/`, `/node_modules/`, `/vendor/`, `/__vite_hmr`, `/__laravel_vite_plugin__/` | Vite dev server |
    | everything else | your app |
-3. **Opens the tunnel** — v1 shells out to your installed `ngrok` (BYO
-   transport; free).
+3. **Opens the tunnel** — shells out to `cloudflared` (quick tunnel, free,
+   no account) or, with `--transport ngrok` or a static domain, to your
+   authenticated `ngrok`.
 4. **Rewrites dev-server responses in-flight** — this is what makes it work
    with a **stock `vite.config.js` and no Vite restart**. Vite bakes its
    connection config into what it serves at dev-server start; the mux fixes
@@ -128,9 +156,11 @@ to your project's `.gitignore` (it holds no secrets — just the original
 
 ## Building and running
 
-Prerequisites: Go 1.21+, and [ngrok](https://ngrok.com/download) installed
-and authenticated (`ngrok config add-authtoken …`) — transport is BYO in
-this version.
+Prerequisites: Go 1.21+, and the transport binary —
+[cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+for the default quick tunnel (no account needed; the brew cask installs it
+for you), or [ngrok](https://ngrok.com/download) installed and
+authenticated (`ngrok config add-authtoken …`) if you want stable domains.
 
 ```sh
 # macOS
@@ -147,7 +177,8 @@ install -m 755 localhoist /usr/local/bin/localhoist
 # run it from (or at) a Laravel project
 cd ~/code/my-laravel-app && localhoist
 localhoist --dir ~/code/my-laravel-app        # same thing, from anywhere
-localhoist --domain my-app.ngrok-free.dev     # stable domain instead of a random one
+localhoist --transport ngrok                  # ngrok instead of the quick tunnel
+localhoist --domain my-app.ngrok-free.dev     # stable domain (implies ngrok)
 ```
 
 While it runs: `.env` points at the tunnel, and HMR + Echo work through it
@@ -160,7 +191,9 @@ with no Vite restart and no `vite.config.js` changes. `Ctrl+C` restores
 go test ./...       # unit tests (envfile, laravel, proxy, rewrite, tunnel)
 bash test/e2e.sh    # end-to-end: patch → run → restore, crash recovery,
                     # live routing + in-flight HTML rewriting through the
-                    # mux, using a fake ngrok — runs offline, publishes nothing
+                    # mux, transport selection + config precedence — using
+                    # fake cloudflared/ngrok binaries, so it runs offline
+                    # and publishes nothing
 ```
 
 ## Roadmap
@@ -174,6 +207,9 @@ bash test/e2e.sh    # end-to-end: patch → run → restore, crash recovery,
 - [x] Trusted-proxy middleware in `localhoist/laravel` — zero `.env`
       mutation (the planned `localhoist/ready` package, folded in; the JS
       Echo helper became unnecessary once the in-flight rewrite shipped)
+- [x] Cloudflare quick tunnel as the no-account default transport, ngrok
+      for stable domains — `--transport`, `localhoist config`, guided
+      `brew install` when the binary is missing
 - [ ] Custom route escape hatch (config file)
 - [ ] Own relay + stable custom subdomains (paid tier)
 - [ ] Sail/Docker service image

@@ -10,7 +10,8 @@ use Symfony\Component\Process\Process;
 class ShareCommand extends Command
 {
     protected $signature = 'share
-        {--domain= : Static tunnel domain (e.g. my-app.ngrok-free.dev)}
+        {--transport= : Tunnel transport: cloudflare (quick tunnel, default) or ngrok}
+        {--domain= : Static tunnel domain, ngrok only (e.g. my-app.ngrok-free.dev)}
         {--no-qr : Skip the QR code}
         {--no-env-patch : Do not touch .env (URLs/websockets may break)}
         {--env-patch : Patch .env even though the middleware handles URLs (e.g. for links in queued emails)}
@@ -68,6 +69,9 @@ class ShareCommand extends Command
     {
         $args = [$binary, '--dir', base_path()];
 
+        if ($transport = $this->option('transport')) {
+            $args[] = '--transport='.$transport;
+        }
         if ($domain = $this->option('domain')) {
             $args[] = '--domain='.$domain;
         }

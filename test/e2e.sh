@@ -1,18 +1,27 @@
 #!/usr/bin/env bash
-# End-to-end harness for the localhoist binary. Uses a fake ngrok on PATH, so it
-# runs entirely offline and publishes nothing.
+# End-to-end harness for the localhoist binary. Uses fake cloudflared/ngrok
+# binaries on PATH and an isolated XDG_CONFIG_HOME, so it runs entirely
+# offline, publishes nothing, and never touches the developer's real config.
 #
-#   Scenario 1: clean run patches APP_URL only, SIGINT restores byte-for-byte
+#   Scenario 1: clean run (default cloudflare transport) patches APP_URL only,
+#               shows the transport hint, SIGINT restores byte-for-byte
 #   Scenario 2: SIGKILL mid-run, next start recovers the original values
-#   Scenario 3: the mux proxies real requests and 502s dead upstreams
-#   Scenario 4: localhoist/laravel >= 0.2 in composer.lock → zero .env mutation
+#   Scenario 3: --transport ngrok uses ngrok; no save-default prompt off-TTY
+#   Scenario 4: --domain implies ngrok when no transport is configured
+#   Scenario 5: config precedence — global set/unset, project file overrides
+#   Scenario 6: missing transport binary fails cleanly, .env untouched
+#   Scenario 7: the mux proxies real requests and 502s dead upstreams
+#   Scenario 8: localhoist/laravel >= 0.2 in composer.lock → zero .env mutation
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d)"
 FAKEBIN="$WORK/fakebin"
 PROJ="$WORK/fakeproj"
-mkdir -p "$FAKEBIN" "$PROJ"
+mkdir -p "$FAKEBIN" "$PROJ" "$WORK/xdg"
+
+# Isolate config: no run may read or write ~/.config/localhoist.
+export XDG_CONFIG_HOME="$WORK/xdg"
 
 EXPOSE_PID=""
 HTTP_PID=""
@@ -23,12 +32,13 @@ cleanup() {
     wait "$HTTP_PID" 2>/dev/null || true
   fi
   pkill -f "$FAKEBIN/ngrok" 2>/dev/null || true
+  pkill -f "$FAKEBIN/cloudflared" 2>/dev/null || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
 
-# ── fake ngrok ────────────────────────────────────────────────────────
-# Reaps its sleep child on TERM so no orphans hold the stdout pipe open.
+# ── fake transports ───────────────────────────────────────────────────
+# Both reap their sleep child on TERM so no orphans hold the stdout pipe open.
 cat > "$FAKEBIN/ngrok" <<'EOF'
 #!/usr/bin/env bash
 trap 'kill $SLEEP_PID 2>/dev/null; exit 0' TERM INT
@@ -39,6 +49,21 @@ SLEEP_PID=$!
 wait $SLEEP_PID
 EOF
 chmod +x "$FAKEBIN/ngrok"
+
+# cloudflared logs its banner to stderr — the binary must merge the streams.
+cat > "$FAKEBIN/cloudflared" <<'EOF'
+#!/usr/bin/env bash
+trap 'kill $SLEEP_PID 2>/dev/null; exit 0' TERM INT
+echo '2026-07-15T10:00:00Z INF Thank you for trying Cloudflare Tunnel. https://www.cloudflare.com/website-terms/' >&2
+echo '2026-07-15T10:00:01Z INF +--------------------------------------------------------------------------------------------+' >&2
+echo '2026-07-15T10:00:01Z INF |  Your quick Tunnel has been created! Visit it at (it may take some time to be reachable):  |' >&2
+echo '2026-07-15T10:00:01Z INF |  https://fake-words-here.trycloudflare.com                                                 |' >&2
+echo '2026-07-15T10:00:01Z INF +--------------------------------------------------------------------------------------------+' >&2
+sleep 300 &
+SLEEP_PID=$!
+wait $SLEEP_PID
+EOF
+chmod +x "$FAKEBIN/cloudflared"
 
 # ── fake Laravel project ──────────────────────────────────────────────
 printf '#!/usr/bin/env php\n' > "$PROJ/artisan"
@@ -59,7 +84,7 @@ cp "$PROJ/.env" "$PROJ/.env.orig"
 
 run_expose() {
   : > "$WORK/out.log"
-  PATH="$FAKEBIN:$PATH" "$WORK/localhoist" --dir "$PROJ" --no-qr > "$WORK/out.log" 2>&1 &
+  PATH="$FAKEBIN:$PATH" "$WORK/localhoist" --dir "$PROJ" --no-qr "$@" > "$WORK/out.log" 2>&1 &
   EXPOSE_PID=$!
   for i in $(seq 1 50); do
     grep -q "🌍" "$WORK/out.log" 2>/dev/null && break   # banner prints after the .env patch
@@ -69,26 +94,29 @@ run_expose() {
 
 fail() { echo "FAIL: $*"; echo "--- output ---"; cat "$WORK/out.log"; exit 1; }
 
-# ── Scenario 1: clean run + SIGINT restore ───────────────────────────
+# ── Scenario 1: clean run (cloudflare default) + SIGINT restore ──────
 run_expose
-grep -q "APP_URL=https://fake123.ngrok-free.app" "$PROJ/.env" || fail "APP_URL not patched"
+grep -q "starting Cloudflare quick tunnel" "$WORK/out.log" || fail "default transport is not the cloudflare quick tunnel"
+grep -q "APP_URL=https://fake-words-here.trycloudflare.com" "$PROJ/.env" || fail "APP_URL not patched"
 # REVERB_* must stay untouched: the browser config is rewritten in-flight
 # and the backend publishes to Reverb over localhost.
 grep -q 'REVERB_HOST="localhost"' "$PROJ/.env" || fail "REVERB_HOST was patched — it must not be"
 grep -q "REVERB_PORT=8080"        "$PROJ/.env" || fail "REVERB_PORT was patched — it must not be"
 [ -f "$PROJ/.env.localhoist-state.json" ] || fail "state file missing while running"
+# Zero-config runs point at the one choice worth knowing about.
+grep -q "Prefer ngrok" "$WORK/out.log" || fail "transport hint missing on an unconfigured run"
 
 kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
 diff -u "$PROJ/.env.orig" "$PROJ/.env" || fail ".env not restored after SIGINT"
 [ ! -f "$PROJ/.env.localhoist-state.json" ] || fail "state file left behind after clean exit"
-pgrep -f "$FAKEBIN/ngrok" > /dev/null && fail "fake ngrok still running after exit"
-echo "PASS: clean run patches and restores .env"
+pgrep -f "$FAKEBIN/cloudflared" > /dev/null && fail "fake cloudflared still running after exit"
+echo "PASS: clean run (cloudflare default) patches and restores .env"
 
 # ── Scenario 2: crash (SIGKILL) + recovery on next start ─────────────
 run_expose
 kill -9 "$EXPOSE_PID"; wait "$EXPOSE_PID" 2>/dev/null || true
-pkill -f "$FAKEBIN/ngrok" 2>/dev/null || true
-grep -q "fake123" "$PROJ/.env" || fail "precondition: .env should still be patched after SIGKILL"
+pkill -f "$FAKEBIN/cloudflared" 2>/dev/null || true
+grep -q "fake-words-here" "$PROJ/.env" || fail "precondition: .env should still be patched after SIGKILL"
 [ -f "$PROJ/.env.localhoist-state.json" ] || fail "precondition: state file should survive SIGKILL"
 
 run_expose   # next start must restore first, then re-patch
@@ -97,7 +125,62 @@ kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
 diff -u "$PROJ/.env.orig" "$PROJ/.env" || fail ".env not restored after recovery run"
 echo "PASS: crash recovery restores original values on next start"
 
-# ── Scenario 3: mux routes real requests and rewrites HTML in-flight ─
+# ── Scenario 3: --transport ngrok ─────────────────────────────────────
+run_expose --transport ngrok
+grep -q "starting ngrok tunnel" "$WORK/out.log" || fail "--transport ngrok did not pick ngrok"
+grep -q "APP_URL=https://fake123.ngrok-free.app" "$PROJ/.env" || fail "APP_URL not patched with the ngrok URL"
+# Not a TTY here — the save-default prompt must never fire off-terminal.
+grep -q "Make ngrok your default" "$WORK/out.log" && fail "save-default prompt fired without a TTY"
+grep -q "Prefer ngrok" "$WORK/out.log" && fail "transport hint shown on an ngrok run"
+kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
+diff -u "$PROJ/.env.orig" "$PROJ/.env" || fail ".env not restored after ngrok run"
+echo "PASS: --transport ngrok overrides the default, no prompt off-TTY"
+
+# ── Scenario 4: a static domain implies ngrok ─────────────────────────
+run_expose --domain my-app.ngrok-free.dev
+grep -q "static domain my-app.ngrok-free.dev → using ngrok" "$WORK/out.log" || fail "domain-implies-ngrok note missing"
+grep -q "starting ngrok tunnel" "$WORK/out.log" || fail "--domain did not route to ngrok"
+kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
+
+# …but an *explicit* cloudflare choice + domain is a conflict, not a guess.
+if PATH="$FAKEBIN:$PATH" "$WORK/localhoist" --dir "$PROJ" --no-qr --transport cloudflare --domain my-app.ngrok-free.dev > "$WORK/out.log" 2>&1; then
+  fail "explicit cloudflare + domain should fail"
+fi
+grep -q "needs ngrok" "$WORK/out.log" || fail "conflict error message missing"
+echo "PASS: static domain implies ngrok; explicit cloudflare + domain errors"
+
+# ── Scenario 5: config precedence (global < project < flag) ──────────
+"$WORK/localhoist" config set transport ngrok > /dev/null
+run_expose
+grep -q "starting ngrok tunnel" "$WORK/out.log" || fail "global config transport=ngrok not honored"
+grep -q "Prefer ngrok" "$WORK/out.log" && fail "transport hint shown despite explicit config"
+kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
+
+echo '{"transport": "cloudflare"}' > "$PROJ/.localhoist.json"
+run_expose
+grep -q "starting Cloudflare quick tunnel" "$WORK/out.log" || fail "project config did not override global"
+kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
+
+# `config` (run from the project) must attribute the value to the project file.
+# (grep -q on a pipe would SIGPIPE the binary under pipefail — go via a file.)
+(cd "$PROJ" && "$WORK/localhoist" config > "$WORK/cfg.out")
+grep -q "project config" "$WORK/cfg.out" || fail "config show does not attribute the project source: $(cat "$WORK/cfg.out")"
+rm "$PROJ/.localhoist.json"
+"$WORK/localhoist" config unset transport > /dev/null
+run_expose
+grep -q "starting Cloudflare quick tunnel" "$WORK/out.log" || fail "unset did not return to the default"
+kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
+echo "PASS: config precedence — global honored, project overrides, unset reverts"
+
+# ── Scenario 6: missing transport binary fails cleanly ───────────────
+if PATH="/usr/bin:/bin" "$WORK/localhoist" --dir "$PROJ" --no-qr > "$WORK/out.log" 2>&1; then
+  fail "run without cloudflared on PATH should fail"
+fi
+grep -q "cloudflared not found in PATH" "$WORK/out.log" || fail "missing-binary error message absent"
+diff -u "$PROJ/.env.orig" "$PROJ/.env" || fail ".env touched even though the tunnel never started"
+echo "PASS: missing transport binary fails cleanly, .env untouched"
+
+# ── Scenario 7: mux routes real requests and rewrites HTML in-flight ─
 DOCROOT="$WORK/docroot"
 mkdir -p "$DOCROOT" "$PROJ/public"
 cat > "$DOCROOT/index.html" <<'EOF'
@@ -130,7 +213,7 @@ echo "$BODY" | grep -q '\[::1\]:5173' && fail "hot origin survived in HTML: $BOD
 kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
 echo "PASS: mux proxies requests, rewrites HTML in-flight, and 502s dead upstreams"
 
-# ── Scenario 4: middleware package installed → zero .env mutation ────
+# ── Scenario 8: middleware package installed → zero .env mutation ────
 cat > "$PROJ/composer.lock" <<'EOF'
 {"packages": [], "packages-dev": [{"name": "localhoist/laravel", "version": "v0.2.0"}]}
 EOF
@@ -146,7 +229,7 @@ kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
 PATH="$FAKEBIN:$PATH" "$WORK/localhoist" --dir "$PROJ" --no-qr --env-patch > "$WORK/out.log" 2>&1 &
 EXPOSE_PID=$!
 for i in $(seq 1 50); do grep -q "🌍" "$WORK/out.log" 2>/dev/null && break; sleep 0.1; done
-grep -q "APP_URL=https://fake123.ngrok-free.app" "$PROJ/.env" || fail "--env-patch did not force patching"
+grep -q "APP_URL=https://fake-words-here.trycloudflare.com" "$PROJ/.env" || fail "--env-patch did not force patching"
 kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
 diff -u "$PROJ/.env.orig" "$PROJ/.env" || fail ".env not restored after forced patch run"
 echo "PASS: middleware package enables zero .env mutation (--env-patch overrides)"

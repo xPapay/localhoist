@@ -468,6 +468,7 @@
       <p class="hero__sub">
         One command puts your local Laravel app online — app, Vite HMR and Reverb
         websockets all working through a single tunnel. Zero config. Zero Vite restart.
+        No account needed.
       </p>
 
       <div class="hero__cmd">
@@ -507,9 +508,9 @@
         <div class="tunnel">
           <div class="tunnel__row">
             <span class="tunnel__dot" aria-hidden="true"></span>
-            <span class="tunnel__url"><span class="scheme">https://</span>your-app.ngrok-free.app</span>
+            <span class="tunnel__url"><span class="scheme">https://</span>your-app.trycloudflare.com</span>
             <div class="tunnel__btns">
-              <button type="button" class="tunnel__btn" data-copy="https://your-app.ngrok-free.app" aria-label="Copy URL" title="Copy">
+              <button type="button" class="tunnel__btn" data-copy="https://your-app.trycloudflare.com" aria-label="Copy URL" title="Copy">
                 <svg class="icon icon-copy" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2z M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
                 <svg class="icon icon-copied" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
               </button>
@@ -538,8 +539,8 @@
     <div class="section__head">
       <div class="lh-eyebrow">The problem</div>
       <h2 id="problem-h2">Plain tunnels break Laravel dev in three places</h2>
-      <p>ngrok, cloudflared and other tunnels forward your app but leave the modern Laravel stack in pieces.
-      localhoist fixes all three, in-flight, so your stock config never changes.</p>
+      <p>A raw tunnel — ngrok, cloudflared, Expose — forwards your app but leaves the modern Laravel stack in pieces.
+      localhoist drives one for you and fixes all three, in-flight, so your stock config never changes.</p>
     </div>
     <div class="grid-3">
       <div class="card">
@@ -632,10 +633,10 @@
         <div class="terminal__line"><span class="prefix">$</span><span>localhoist</span></div>
         <div class="terminal__line"><span>&nbsp;</span></div>
         <div class="terminal__line t-dim"><span>Detecting Laravel app…  Herd · php 8.3</span></div>
-        <div class="terminal__line t-dim"><span>Opening tunnel…</span></div>
+        <div class="terminal__line t-dim"><span>Opening Cloudflare quick tunnel…</span></div>
         <div class="terminal__line"><span>&nbsp;</span></div>
         <div class="terminal__line t-green"><span class="prefix">✓</span><span>Tunnel online</span></div>
-        <div class="terminal__line t-green"><span>https://your-app.ngrok-free.app</span></div>
+        <div class="terminal__line t-green"><span>https://your-app.trycloudflare.com</span></div>
         <div class="terminal__line"><span>&nbsp;</span></div>
         <div class="terminal__line t-green"><span class="prefix">✓</span><span>Vite HMR      rewired  → wss://…/vite</span></div>
         <div class="terminal__line t-green"><span class="prefix">✓</span><span>Reverb WS     rewired  → wss://…/app</span></div>
@@ -653,7 +654,8 @@
       <div class="lh-eyebrow">Install</div>
       <h2 id="install-h2">One binary. Pick your poison.</h2>
       <p>Then <code>cd</code> into any Laravel app and run <code>localhoist</code> — or <code>php artisan share</code>.
-      Transport is your own <a href="https://ngrok.com/download" target="_blank" rel="noopener">ngrok</a> today; a hosted relay with
+      Ships on a free <a href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/" target="_blank" rel="noopener">Cloudflare</a> quick tunnel — no account. Want a stable domain?
+      Run <code>--transport ngrok</code> with your own <a href="https://ngrok.com/download" target="_blank" rel="noopener">ngrok</a>. A hosted relay with
       stable subdomains is on the <a href="https://github.com/xPapay/localhoist#roadmap" target="_blank" rel="noopener">roadmap</a>.</p>
     </div>
     <div class="grid-3">

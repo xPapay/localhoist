@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>localhoist — put localhost online</title>
-  <meta name="description" content="One command puts your local Laravel app on the internet — app, Vite HMR and Reverb websockets all working through a single tunnel. Zero config, zero Vite restart, zero .env mutation.">
-  <meta property="og:title" content="localhoist — put localhost online">
-  <meta property="og:description" content="Tunnel your local Laravel dev environment with Vite HMR, Reverb websockets and signed URLs all working. Zero config.">
+  <title>localhoist — share your localhost, live</title>
+  <meta name="description" content="Share the Laravel dev server you're already running through one tunnel — Vite HMR and Reverb included, so edits hot-reload with no rebuild. Preview on your phone or share the link with a coworker. A live tunnel, not a deploy.">
+  <meta property="og:title" content="localhoist — share your localhost, live">
+  <meta property="og:description" content="Share your live Laravel dev environment through one tunnel — HMR and websockets included, no rebuild. Preview on your phone or a coworker's screen.">
   <meta property="og:url" content="https://localhoist.io">
   <meta property="og:type" content="website">
   <meta name="theme-color" content="#0b0b0d">
@@ -463,10 +463,10 @@
         <span class="note">Vite HMR &amp; Reverb, rewired in-flight</span>
       </div>
 
-      <h1 id="hero-h1">Put localhost<br>online<span class="lh-caret" style="height:0.82em;margin-left:6px;" aria-hidden="true"></span></h1>
+      <h1 id="hero-h1">Share your<br>localhost, live<span class="lh-caret" style="height:0.82em;margin-left:6px;" aria-hidden="true"></span></h1>
 
       <p class="hero__sub">
-        One command puts your local Laravel app on the internet — app, Vite HMR and Reverb
+        One command puts your local Laravel app online — app, Vite HMR and Reverb
         websockets all working through a single tunnel. Zero config. Zero Vite restart.
       </p>
 
@@ -726,7 +726,7 @@
   <footer aria-label="Site footer">
     <div class="footer__inner">
       <div class="cta">
-        <h2>Ship your localhost, now</h2>
+        <h2>Share your localhost, now</h2>
         <p>Install once. Share in one command. Works with Sail, Herd and Valet out of the box.</p>
         <div class="cta__cmd">
           <div class="cmd">
@@ -752,7 +752,7 @@
             </span>
             <span class="wordmark__text">localhoist</span>
           </a>
-          <p class="footer__about">One command puts your local Laravel app online — HMR and websockets included.</p>
+          <p class="footer__about">One command shares the Laravel app you're already running — HMR and websockets included, on any device.</p>
         </div>
         <div>
           <div class="lh-eyebrow">Product</div>
@@ -812,6 +812,22 @@
         qrPanel.hidden = open;
       });
     }
+
+    // Smooth in-page scrolling for anchor links — cross-browser (Safari's CSS
+    // scroll-behavior on fragment navigation is unreliable). Respects
+    // reduced-motion; the sticky-nav offset comes from scroll-padding-top.
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    document.addEventListener('click', (e) => {
+      const link = e.target.closest('a[href^="#"]');
+      if (!link) return;
+      const hash = link.getAttribute('href');
+      if (hash.length < 2) return;
+      const target = document.querySelector(hash);
+      if (!target) return;
+      e.preventDefault();
+      target.scrollIntoView({ behavior: reduceMotion.matches ? 'auto' : 'smooth', block: 'start' });
+      history.pushState(null, '', hash);
+    });
   </script>
 
 </body>

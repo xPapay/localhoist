@@ -39,6 +39,23 @@ php artisan share --domain=my-app.ngrok-free.dev
 php artisan share --no-qr
 ```
 
+## Which command? (it runs on your host)
+
+The tunnel always runs on your **host machine** — that's where your ports
+are published. `php artisan share` is just a launcher for the host binary,
+so it needs your PHP to be on the host too:
+
+| Where your PHP runs | Run |
+| --- | --- |
+| On the host | `php artisan share` |
+| In a container | `localhoist` on the host, from your project directory (install it via Homebrew or `go install`) |
+
+When PHP is containerized, `artisan` runs *inside* the container and can't
+reach the host's published ports — so `php artisan share` detects this and
+**stops with the host command to run instead** rather than failing halfway.
+Have a non-standard setup that publishes ports differently? `php artisan
+share --force` runs it anyway.
+
 ## Zero `.env` mutation
 
 The package ships a `TrustLocalhoistProxy` middleware, auto-registered in
@@ -69,7 +86,3 @@ The command is a thin wrapper around the `localhoist` Go binary
 
 Until binaries are published, build from source and use option 1 or 2:
 `go build ./cmd/localhoist`.
-
-Note for Sail users: run this on your **host**, not inside the container —
-the tunnel needs the host's published ports and your host ngrok install.
-The command warns when it detects a container.

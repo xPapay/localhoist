@@ -14,16 +14,24 @@ class ShareCommand extends Command
         {--no-qr : Skip the QR code}
         {--no-env-patch : Do not touch .env (URLs/websockets may break)}
         {--env-patch : Patch .env even though the middleware handles URLs (e.g. for links in queued emails)}
-        {--binary= : Path to the localhoist binary (overrides auto-detection)}';
+        {--binary= : Path to the localhoist binary (overrides auto-detection)}
+        {--force : Run even inside a container (advanced — the tunnel still needs host-published ports)}';
 
     protected $description = 'Put this app online — Vite HMR, Reverb websockets, and signed URLs all working through one tunnel';
 
     public function handle(BinaryLocator $locator): int
     {
+        // Sail/Docker: artisan runs inside the container, but the tunnel must
+        // run on the host where the ports are published. Redirect there rather
+        // than run and fail confusingly. --force is the escape hatch for
+        // non-standard setups that publish ports differently.
+        if ($this->runningInsideContainer() && ! $this->option('force')) {
+            return $this->guideToHost();
+        }
+
         if ($this->runningInsideContainer()) {
-            $this->warn('This command appears to be running inside a container (Sail?).');
-            $this->warn('The tunnel must run where your ports are published — on the host.');
-            $this->warn('Install the localhoist binary on your host and run it there instead.');
+            $this->warn('Running inside a container because --force was passed — this only works if');
+            $this->warn("the host's published ports are reachable from here, or the tunnel will fail.");
             $this->newLine();
         }
 
@@ -81,5 +89,26 @@ class ShareCommand extends Command
         return getenv('LARAVEL_SAIL') === '1'
             || file_exists('/.dockerenv')
             || file_exists('/run/.containerenv');
+    }
+
+    /**
+     * Point the user at the host, where the tunnel actually has to run.
+     * Note: we don't echo base_path() — inside the container that's the
+     * container path, not the host project path the user needs.
+     */
+    private function guideToHost(): int
+    {
+        $this->error("php artisan share can't open the tunnel from inside a container.");
+        $this->newLine();
+        $this->line('  The tunnel runs on your host, where your ports are published.');
+        $this->line('  In a host terminal (not the Sail shell), from your project directory:');
+        $this->newLine();
+        $this->info('      localhoist');
+        $this->newLine();
+        $this->line('  First time?           brew install xPapay/tap/localhoist');
+        $this->line('  Sure this is right?   php artisan share --force');
+        $this->newLine();
+
+        return self::FAILURE;
     }
 }

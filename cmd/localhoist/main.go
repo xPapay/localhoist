@@ -185,8 +185,18 @@ func run() error {
 	for _, r := range routes {
 		fmt.Printf("      %-14s → %s (%s)\n", r.Prefix, r.Target, r.Name)
 	}
+	// Point at the middleware package (the zero-.env-mutation path) only when
+	// we patched *because* it's absent — a forced --env-patch run already has
+	// it installed on purpose. Shown at most once per run, at whichever spot
+	// below is most relevant: the config-cached warning when that fires (the
+	// patch is actively broken there), otherwise the plain patched line.
+	suggestMiddleware := patched && !project.TrustedProxyPackage
+
 	if patched {
 		fmt.Println("  ✔ .env patched: APP_URL (restored on exit)")
+		if suggestMiddleware && !project.ConfigCached {
+			fmt.Println("    ↳ skip the edit for good:  composer require --dev localhoist/laravel")
+		}
 	} else if !*noPatch && project.TrustedProxyPackage {
 		fmt.Println("  ✔ zero .env mutation — localhoist/laravel middleware derives URLs from the tunnel")
 	}
@@ -196,6 +206,9 @@ func run() error {
 
 	if project.ConfigCached && patched {
 		fmt.Println("  ⚠ config is cached — run `php artisan config:clear` or the app won't see the new APP_URL")
+		if suggestMiddleware {
+			fmt.Println("    ↳ or sidestep it entirely:  composer require --dev localhoist/laravel")
+		}
 	}
 	fmt.Println("  ✔ HMR + Echo rewritten in-flight — no Vite restart needed")
 	fmt.Println()

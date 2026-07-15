@@ -4,7 +4,10 @@
 # offline, publishes nothing, and never touches the developer's real config.
 #
 #   Scenario 1: clean run (default cloudflare transport) patches APP_URL only,
-#               shows the transport hint, SIGINT restores byte-for-byte
+#               shows the transport hint + the middleware pointer, SIGINT
+#               restores byte-for-byte
+#   Scenario 1b: config cached → the middleware pointer moves to the warning,
+#                and is shown only once
 #   Scenario 2: SIGKILL mid-run, next start recovers the original values
 #   Scenario 3: --transport ngrok uses ngrok; no save-default prompt off-TTY
 #   Scenario 4: --domain implies ngrok when no transport is configured
@@ -105,12 +108,30 @@ grep -q "REVERB_PORT=8080"        "$PROJ/.env" || fail "REVERB_PORT was patched 
 [ -f "$PROJ/.env.localhoist-state.json" ] || fail "state file missing while running"
 # Zero-config runs point at the one choice worth knowing about.
 grep -q "Prefer ngrok" "$WORK/out.log" || fail "transport hint missing on an unconfigured run"
+# With the middleware package absent (no composer.lock) and config not cached,
+# the patched line carries the "skip the edit for good" pointer to the package.
+grep -q "skip the edit for good:  composer require --dev localhoist/laravel" "$WORK/out.log" \
+  || fail "middleware hint missing on a patched run without the package"
 
 kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
 diff -u "$PROJ/.env.orig" "$PROJ/.env" || fail ".env not restored after SIGINT"
 [ ! -f "$PROJ/.env.localhoist-state.json" ] || fail "state file left behind after clean exit"
 pgrep -f "$FAKEBIN/cloudflared" > /dev/null && fail "fake cloudflared still running after exit"
 echo "PASS: clean run (cloudflare default) patches and restores .env"
+
+# ── Scenario 1b: config cached moves the middleware pointer to the warning ──
+mkdir -p "$PROJ/bootstrap/cache"
+: > "$PROJ/bootstrap/cache/config.php"
+run_expose
+grep -q "config is cached" "$WORK/out.log" || fail "config-cached warning missing"
+grep -q "or sidestep it entirely:  composer require --dev localhoist/laravel" "$WORK/out.log" \
+  || fail "middleware pointer missing from the config-cached warning"
+# The suggestion appears once: with config cached, the plain patched line drops it.
+grep -q "skip the edit for good" "$WORK/out.log" && fail "middleware pointer duplicated when config is cached"
+kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
+diff -u "$PROJ/.env.orig" "$PROJ/.env" || fail ".env not restored after config-cached run"
+rm -rf "$PROJ/bootstrap"
+echo "PASS: config cached — middleware pointer moves to the warning, shown once"
 
 # ── Scenario 2: crash (SIGKILL) + recovery on next start ─────────────
 run_expose
@@ -222,6 +243,8 @@ run_expose
 grep -q "zero .env mutation" "$WORK/out.log" || fail "zero-mutation banner missing"
 diff -u "$PROJ/.env.orig" "$PROJ/.env" || fail ".env was touched despite the middleware package"
 [ ! -f "$PROJ/.env.localhoist-state.json" ] && echo ok > /dev/null || fail "state file created despite zero mutation"
+# Package present → nothing to suggest.
+grep -q "composer require --dev localhoist/laravel" "$WORK/out.log" && fail "middleware hint shown though the package is installed"
 kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
 
 # --env-patch must force the old behavior even with the package installed.
@@ -230,7 +253,11 @@ PATH="$FAKEBIN:$PATH" "$WORK/localhoist" --dir "$PROJ" --no-qr --env-patch > "$W
 EXPOSE_PID=$!
 for i in $(seq 1 50); do grep -q "🌍" "$WORK/out.log" 2>/dev/null && break; sleep 0.1; done
 grep -q "APP_URL=https://fake-words-here.trycloudflare.com" "$PROJ/.env" || fail "--env-patch did not force patching"
+# Forced patch with the package installed patches APP_URL but must NOT suggest
+# installing what's already there — the hint is gated on the package's absence.
+grep -q "skip the edit for good" "$WORK/out.log" && fail "middleware hint shown on a forced --env-patch run with the package installed"
 kill -INT "$EXPOSE_PID"; wait "$EXPOSE_PID" || true
+rm -f "$PROJ/composer.lock"
 diff -u "$PROJ/.env.orig" "$PROJ/.env" || fail ".env not restored after forced patch run"
 echo "PASS: middleware package enables zero .env mutation (--env-patch overrides)"
 
